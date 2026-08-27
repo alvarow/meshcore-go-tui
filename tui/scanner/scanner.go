@@ -255,8 +255,8 @@ func startScan(done chan struct{}, nameFilter string) tea.Cmd {
 				default:
 				}
 
-				name := r.AdvertisementPayload.LocalName()
-				hasNUS := r.AdvertisementPayload.HasServiceUUID(nusSvcUUID)
+				name := r.LocalName()
+				hasNUS := r.HasServiceUUID(nusSvcUUID)
 
 				// Name filter: use configured filter if set, fall back to "mesh".
 				check := nameFilter

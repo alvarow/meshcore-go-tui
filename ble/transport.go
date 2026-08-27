@@ -356,11 +356,11 @@ func (t *Transport) resolveAddress(ctx context.Context, adapter *bluetooth.Adapt
 // matches returns true if the scan result should be selected. Accepts on NUS
 // service UUID presence, or on nameFilter substring match when set.
 func (t *Transport) matches(result bluetooth.ScanResult) bool {
-	if result.AdvertisementPayload.HasServiceUUID(nusSvcUUID) {
+	if result.HasServiceUUID(nusSvcUUID) {
 		return true
 	}
 	if t.nameFilter != "" {
-		name := result.AdvertisementPayload.LocalName()
+		name := result.LocalName()
 		return containsFold(name, t.nameFilter)
 	}
 	return false

@@ -291,7 +291,8 @@ func loadBefore(b *bolt.Bucket, before time.Time, limit int) []StoredMessage {
 	c := b.Cursor()
 	seek := tsKey(before)
 	// Position at the first key >= before, then step back one.
-	k, v := c.Seek(seek)
+	var v []byte
+	k, _ := c.Seek(seek) // discard value at seek position; we step back immediately
 	if k == nil {
 		// before is past the last key — start from the end.
 		k, v = c.Last()

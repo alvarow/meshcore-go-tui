@@ -220,17 +220,19 @@ func (v *SettingsView) Update(msg tea.Msg) (View, tea.Cmd) {
 					return v, nil
 				}
 				v.editFocus++
-				if v.editFocus == 1 {
+				switch v.editFocus {
+				case 1:
 					v.editName.Blur()
 					v.editDevice.Blur()
-				} else if v.editFocus == 2 {
+				case 2:
 					v.editDevice.Focus()
 				}
 				return v, nil
 			}
-			if v.editFocus == 0 {
+			switch v.editFocus {
+			case 0:
 				v.editName, cmd = v.editName.Update(msg)
-			} else if v.editFocus == 2 {
+			case 2:
 				v.editDevice, cmd = v.editDevice.Update(msg)
 			}
 			return v, cmd

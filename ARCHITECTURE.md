@@ -60,7 +60,8 @@ meshcore-go-cli/
         ├── channels.go   Group channels: channel list, scrollable thread,
         │                 timestamps, storage wired
         ├── nodes.go      Peer table: Name / Type / SNR / RSSI / LastSeen
-        └── device.go     Self info: name, pubkey prefix, radio params, battery
+        ├── device.go     Self info: name, pubkey prefix, radio params, battery
+        └── settings.go   Config editor: transport, device, scan filter, profiles
 ```
 
 ## SDK dependency
@@ -299,6 +300,42 @@ Spinner ticks only while reconnecting — no wasted ticks when idle.
 area (dark red bg, light red text, full width). Content height shrinks by 1 line
 while the error is visible.
 
+### Settings view
+
+File: `tui/views/settings.go`
+
+The 5th tab. Edits `*config.Config` in place; writes to disk on Save.
+No live connection changes — a status message prompts the user to quit and reconnect.
+
+**Focus cycle** (`Tab` / `Shift+Tab`):
+```
+Transport → Device → Scan name filter → Profile list → [Save] → [Discard] → (wrap)
+```
+
+**Global keys (normal mode):**
+
+| Key | Condition | Action |
+|-----|-----------|--------|
+| `←` / `→` / `Space` | Transport focused | Cycle `ble → serial → tcp` |
+| `↑` / `↓` | Profile list focused | Move selection |
+| `Enter` | Save focused | Write config to disk, show status message |
+| `Enter` | Discard focused | Revert all fields to last-saved snapshot |
+| `Enter` | Profile list focused | Open edit form for selected profile |
+| `n` | Any | Open new-profile form |
+| `d` | Profile list focused | Delete selected profile |
+
+**Profile edit form** (overlay, `editing=true`):
+
+Three fields: Name → Transport → Device. `Tab`/`Shift+Tab` cycle between them.
+`Enter` on Device (or Transport) confirms and closes the form.
+`Esc` cancels with no changes.
+
+**Save / Discard mechanics:**
+
+- `save()` writes `deviceInput`, `filterInput`, and rebuilt `Profile` map back to `*cfg`, then calls `config.Save(cfg)`. On success sets `status = "Saved — quit and reconnect to apply"` and snapshots `original = *cfg`.
+- `discard()` restores `*cfg = original`, resets all inputs from the snapshot, clears dirty flag.
+- Tab title shows `Settings *` whenever `dirty == true`.
+
 ## Protocol — key flows
 
 ### Session startup
@@ -499,7 +536,6 @@ any platform since they have no CGo dependencies.
 
 - **macOS / Windows build**: toolchain requirements documented in BUILD.md;
   needs native build environment per platform.
-- **Config TUI**: in-app settings panel rather than hand-editing TOML.
 
 ## Design decisions
 

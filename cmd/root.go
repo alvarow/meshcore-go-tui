@@ -80,7 +80,7 @@ To set a default in config (~/.config/meshcore/config.toml):
 	}
 
 	// Create client placeholder; will be set after transport connects.
-	app := tui.New(device, nil, store)
+	app := tui.New(device, nil, store, cfg)
 	p := tea.NewProgram(app, tea.WithAltScreen())
 
 	go func() {

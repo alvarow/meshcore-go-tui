@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/meshcore-go/go-cli/config"
 	"github.com/meshcore-go/go-cli/storage"
 	"github.com/meshcore-go/go-cli/tui/views"
 	"github.com/meshcore-go/meshcore-go/companion/client"
@@ -35,7 +36,7 @@ type App struct {
 	errExpiry  time.Time
 }
 
-func New(deviceName string, c *client.Client, store *storage.Store) *App {
+func New(deviceName string, c *client.Client, store *storage.Store, cfg *config.Config) *App {
 	s := spinner.New()
 	s.Spinner = spinner.Points
 	s.Style = lipgloss.NewStyle().Foreground(colorPrimary)
@@ -48,6 +49,7 @@ func New(deviceName string, c *client.Client, store *storage.Store) *App {
 			views.NewChannelView(c, store),
 			views.NewNodesView(),
 			views.NewDeviceView(),
+			views.NewSettingsView(cfg),
 		},
 	}
 }
@@ -92,7 +94,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "shift+tab":
 			a.switchTab((a.activeTab - 1 + len(a.tabs)) % len(a.tabs))
 			return a, nil
-		case "1", "2", "3", "4":
+		case "1", "2", "3", "4", "5":
 			idx := int(m.String()[0] - '1')
 			if idx < len(a.tabs) {
 				a.switchTab(idx)
@@ -224,7 +226,7 @@ func (a *App) View() string {
 	default:
 		connStatus = DisconnectedStyle.Render("○ disconnected")
 	}
-	help := StatusBarStyle.Render("tab/1-4:switch  q:quit")
+	help := StatusBarStyle.Render("tab/1-5:switch  q:quit")
 	gap := strings.Repeat(" ", max(0, a.width-lipgloss.Width(connStatus)-lipgloss.Width(help)-2))
 	statusBar := StatusBarStyle.Width(a.width).Render(connStatus + gap + help)
 

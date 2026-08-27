@@ -163,6 +163,35 @@ name matching is used only when UUID matching fails.
 - Interactive picker (`tui/scanner`): used by `cmd/root.go` when no address
   is known; shows all discovered devices in a BubbleTea list.
 
+### scan_name_filter
+
+`config.ScanNameFilter` is an optional string read from `scan_name_filter` in
+`config.toml`. It narrows the BLE scan picker to devices whose advertised local
+name contains the configured substring (case-insensitive).
+
+**Filter precedence in the scanner:**
+
+```
+NUS service UUID match  →  always accepted (hardware guarantee)
+name contains filter    →  accepted when filter != ""
+name contains "mesh"    →  accepted when filter == "" (built-in default)
+```
+
+Setting the filter does not disable UUID matching — a device advertising the
+NUS UUID is always shown regardless. The filter only changes the name-based
+fallback, which covers devices that omit service UUIDs from their advertisement
+packet to save space.
+
+**Example** — once the Wio L1 Pro's advertised name is known:
+```toml
+scan_name_filter = "L1"   # accepts "L1 Pro", "MeshCore-L1", etc.
+```
+
+The filter is passed to `scanner.Run(nameFilter)` → `NewWithFilter(nameFilter)`
+→ `startScan(done, nameFilter)`. It is also stored on `ble.Transport` when
+`ble.NewWithNameFilter` is called directly (non-picker path). Both code paths
+use the same case-fold logic: `strings.Contains(strings.ToLower(name), filter)`.
+
 ### BLE unavailable
 
 If BlueZ is not running or there is no Bluetooth adapter, `adapter.Enable()`
@@ -468,12 +497,9 @@ any platform since they have no CGo dependencies.
 
 ## Planned improvements
 
-- **macOS / Windows build**: toolchain requirements documented above; needs
-  native build environment per platform.
+- **macOS / Windows build**: toolchain requirements documented in BUILD.md;
+  needs native build environment per platform.
 - **Config TUI**: in-app settings panel rather than hand-editing TOML.
-- **BLE name filter in config**: add `scan_name_filter` key to
-  `~/.config/meshcore/config.toml` so devices like Wio L1 Pro can be filtered
-  by advertised name without needing a CLI flag.
 
 ## Design decisions
 

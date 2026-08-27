@@ -60,6 +60,15 @@ make build-all  # cross-compile all targets
 
 ## Configuration
 
+> **Quick reference — all config keys**
+>
+> | Key | Type | Default | Purpose |
+> |-----|------|---------|---------|
+> | `default_transport` | `"ble"` \| `"serial"` \| `"tcp"` | `"ble"` | Transport to use when `--transport` is not set |
+> | `default_device` | string | `""` | Device address/path; empty triggers BLE scan picker |
+> | `scan_name_filter` | string | `""` | BLE name substring filter; `""` uses built-in `"mesh"` default |
+> | `[profile.<name>]` | section | — | Named profile with its own `transport` + `device` |
+
 Config file location:
 
 | Platform | Path |

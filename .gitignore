@@ -1,0 +1,75 @@
+# Build output
+meshcore-cli
+meshcore-cli-*
+*.exe
+
+# Go
+vendor/
+*.test
+*.out
+coverage.html
+
+# Logs
+*.log
+*.log.*
+
+# Compressed / archives
+*.tar
+*.tar.gz
+*.tar.xz
+*.tar.bz2
+*.tgz
+*.zip
+*.gz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*.vim
+.vim/
+*.sublime-workspace
+*.sublime-project
+.history/
+
+# Environment
+.env
+.env.*
+*.env
+secrets.*
+
+# OS temp
+tmp/
+temp/

@@ -1,0 +1,189 @@
+# meshcore-go-cli
+
+A terminal UI companion client for [MeshCore](https://github.com/ripplebiz/MeshCore) mesh radio nodes,
+written in Go with [BubbleTea](https://github.com/charmbracelet/bubbletea).
+
+Connects to a MeshCore node over **Bluetooth LE**, **Serial**, or **TCP**.
+Runs on Linux today; macOS and Windows support is a planned next step.
+
+## Features
+
+- Tab-based TUI: Chat · Channels · Nodes · Device
+- BLE transport via Nordic UART Service (NUS) with auto-reconnect and MTU negotiation
+- Interactive BLE device picker at startup (scan + select from live list)
+- Serial and TCP transports
+- Full session lifecycle: device query, contact sync, channel sync on connect
+- Live push events: inbound messages, delivery ACKs, peer discovery, contact changes
+- Scrollable message threads with timestamps and delivery status (… / ✓ / ✗)
+- Unread message badges per tab
+- Reconnect spinner in status bar on BLE disconnect
+- Auto-dismiss error bar (5 seconds)
+- Message persistence: full history in `~/.local/share/meshcore/messages.db` (bbolt)
+- Config profiles (`~/.config/meshcore/config.toml`)
+- Cross-compile targets for Linux, macOS, Windows
+
+## Requirements
+
+- Go 1.22+
+- Linux: BlueZ (`bluez` package) for BLE
+- macOS: CoreBluetooth (built-in, CGo required)
+- Windows: WinRT Bluetooth API (built-in, CGo required)
+
+> **No Bluetooth on your machine?** Use serial or TCP instead — see Usage below.
+> The app prints helpful instructions if BlueZ is not available.
+
+## Build
+
+```bash
+make            # build for current platform → ./meshcore-cli
+make build-all  # cross-compile all targets
+```
+
+## Usage
+
+```bash
+# BLE scan — interactive picker when no device is configured
+./meshcore-cli
+
+# BLE — direct address (skips scan)
+./meshcore-cli --device AA:BB:CC:DD:EE:FF
+
+# Serial (no Bluetooth needed)
+./meshcore-cli --transport serial --device /dev/ttyUSB0
+
+# TCP
+./meshcore-cli --transport tcp --device 192.168.1.100:3000
+
+# Named profile from config
+./meshcore-cli --profile home
+```
+
+## Configuration
+
+Config file location:
+
+| Platform | Path |
+|----------|------|
+| Linux | `~/.config/meshcore/config.toml` |
+| macOS | `~/Library/Application Support/meshcore/config.toml` |
+| Windows | `%AppData%\meshcore\config.toml` |
+
+The file is created automatically on first `config.Save()` call. If it doesn't exist, all defaults apply.
+
+### Full reference
+
+```toml
+# Transport to use when no --transport flag is given.
+# Valid values: "ble" (default), "serial", "tcp"
+default_transport = "ble"
+
+# Device address / path / host:port to connect to without scanning.
+# BLE:    "AA:BB:CC:DD:EE:FF"
+# Serial: "/dev/ttyUSB0"  (Linux/macOS)  or  "COM3"  (Windows)
+# TCP:    "192.168.1.100:3000"
+# Leave empty to trigger the interactive BLE scan picker.
+default_device = ""
+
+# Named profiles — use with --profile <name>
+# A profile's fields are merged with CLI flags; flags take priority.
+
+[profile.home]
+transport = "serial"
+device    = "/dev/ttyUSB0"
+
+[profile.wio]
+transport = "ble"
+device    = "AA:BB:CC:DD:EE:FF"   # Wio L1 Pro address
+
+[profile.remote]
+transport = "tcp"
+device    = "192.168.1.100:3000"
+```
+
+### Flag resolution order (highest priority first)
+
+1. `--device` / `--transport` CLI flags
+2. `--profile <name>` profile fields (flags override individual profile fields)
+3. `default_device` / `default_transport` from config file
+4. Built-in default: `transport = "ble"`, `device = ""` (triggers BLE scan picker)
+
+### Common setups
+
+```bash
+# Build machine (no Bluetooth) — always use serial
+echo 'default_transport = "serial"
+default_device    = "/dev/ttyUSB0"' > ~/.config/meshcore/config.toml
+
+# Laptop — BLE by default, serial fallback as a named profile
+cat > ~/.config/meshcore/config.toml <<EOF
+default_transport = "ble"
+default_device    = "AA:BB:CC:DD:EE:FF"
+
+[profile.serial]
+transport = "serial"
+device    = "/dev/ttyUSB0"
+EOF
+```
+
+## Message storage
+
+All messages are persisted automatically to `~/.local/share/meshcore/messages.db`
+(bbolt embedded database, no external process required). History is loaded per
+contact and channel on every connection.
+
+## Keyboard shortcuts
+
+### Global
+
+| Key | Action |
+|-----|--------|
+| `1` | Switch to Chat tab |
+| `2` | Switch to Channels tab |
+| `3` | Switch to Nodes tab |
+| `4` | Switch to Device tab |
+| `Tab` | Next tab |
+| `Shift+Tab` | Previous tab |
+| `q` / `Ctrl+C` | Quit |
+
+### BLE scan picker (startup)
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` or `j` / `k` | Navigate device list |
+| `Enter` | Connect to selected device |
+| `r` | Clear list and restart scan |
+| `q` / `Ctrl+C` | Cancel and exit |
+
+### Chat tab
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Move between contacts |
+| `PgUp` / `PgDn` | Scroll message history |
+| `Ctrl+U` / `Ctrl+D` | Half-page scroll |
+| Type | Compose message (input box at bottom) |
+| `Enter` | Send message |
+
+### Channels tab
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Move between channels |
+| `PgUp` / `PgDn` | Scroll message history |
+| `Ctrl+U` / `Ctrl+D` | Half-page scroll |
+| Type | Compose message |
+| `Enter` | Send message |
+
+### Nodes tab
+
+| Key | Action |
+|-----|--------|
+| `↑` / `k` | Move selection up |
+| `↓` / `j` | Move selection down |
+
+## Reference library
+
+The MeshCore Go SDK lives at `/home/alvaro/src/meshcore-go-main`
+(module: `github.com/meshcore-go/meshcore-go`). The `go.mod` uses a `replace`
+directive pointing there until the library is published. See `ARCHITECTURE.md`
+for protocol details and design decisions.

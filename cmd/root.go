@@ -48,7 +48,7 @@ func Execute() {
 
 	// If BLE and no device address, run the scanner picker first.
 	if (transport == config.TransportBLE || transport == "") && device == "" {
-		result, err := scanner.Run()
+		result, err := scanner.Run(cfg.ScanNameFilter)
 		if err != nil {
 			if errors.Is(err, scanner.ErrBLEUnavailable) {
 				fmt.Fprintln(os.Stderr, `No Bluetooth adapter on this machine.

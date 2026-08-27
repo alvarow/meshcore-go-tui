@@ -23,6 +23,7 @@ type Profile struct {
 type Config struct {
 	DefaultTransport Transport          `toml:"default_transport"`
 	DefaultDevice    string             `toml:"default_device"`
+	ScanNameFilter   string             `toml:"scan_name_filter"`
 	Profile          map[string]Profile `toml:"profile"`
 }
 

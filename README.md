@@ -84,6 +84,12 @@ default_transport = "ble"
 # Leave empty to trigger the interactive BLE scan picker.
 default_device = ""
 
+# BLE scan name filter: only show devices whose advertised name contains
+# this substring (case-insensitive). Replaces the built-in "mesh" default.
+# Leave empty to keep the default "mesh" filter.
+# Example: "L1" for Wio L1 Pro, "MeshCore" for nodes advertising that name.
+scan_name_filter = ""
+
 # Named profiles — use with --profile <name>
 # A profile's fields are merged with CLI flags; flags take priority.
 

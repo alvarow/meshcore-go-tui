@@ -52,6 +52,7 @@ type scanErrMsg struct{ err error }
 type Model struct {
 	list           list.Model
 	seen           map[string]int // address → list index
+	nameFilter     string         // case-insensitive substring; replaces "mesh" default when set
 	result         Result
 	err            error
 	bleUnavailable bool
@@ -96,7 +97,9 @@ func newDelegate() list.DefaultDelegate {
 	return d
 }
 
-func New() *Model {
+func New() *Model { return NewWithFilter("") }
+
+func NewWithFilter(nameFilter string) *Model {
 	l := list.New(nil, newDelegate(), 0, 0)
 	l.Title = "Select MeshCore device"
 	l.Styles.Title = titleStyle
@@ -106,16 +109,17 @@ func New() *Model {
 	l.SetFilteringEnabled(false)
 
 	return &Model{
-		list: l,
-		seen: make(map[string]int),
-		done: make(chan struct{}),
+		list:       l,
+		seen:       make(map[string]int),
+		nameFilter: strings.ToLower(nameFilter),
+		done:       make(chan struct{}),
 	}
 }
 
 func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.list.StartSpinner(),
-		startScan(m.done),
+		startScan(m.done, m.nameFilter),
 	)
 }
 
@@ -129,7 +133,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case foundMsg:
 		updated, insertCmd := m.handleFound(device(msg))
-		return updated, tea.Batch(insertCmd, startScan(m.done))
+		return updated, tea.Batch(insertCmd, startScan(m.done, m.nameFilter))
 
 
 	case scanErrMsg:
@@ -156,7 +160,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.seen = make(map[string]int)
 			m.list.SetItems(nil)
 			m.err = nil
-			return m, tea.Batch(m.list.StartSpinner(), startScan(m.done))
+			return m, tea.Batch(m.list.StartSpinner(), startScan(m.done, m.nameFilter))
 		case "q", "ctrl+c":
 			close(m.done)
 			m.result = Result{Canceled: true}
@@ -233,7 +237,7 @@ Press q to quit.`)
 // startScan returns a Cmd that runs one scan callback iteration.
 // It sends a foundMsg for any qualifying device and then returns,
 // allowing the BubbleTea loop to call it again via the returned Cmd chain.
-func startScan(done chan struct{}) tea.Cmd {
+func startScan(done chan struct{}, nameFilter string) tea.Cmd {
 	return func() tea.Msg {
 		adapter := bluetooth.DefaultAdapter
 		if err := adapter.Enable(); err != nil {
@@ -253,9 +257,15 @@ func startScan(done chan struct{}) tea.Cmd {
 
 				name := r.AdvertisementPayload.LocalName()
 				hasNUS := r.AdvertisementPayload.HasServiceUUID(nusSvcUUID)
-				hasMeshName := strings.Contains(strings.ToLower(name), "mesh")
 
-				if !hasNUS && !hasMeshName {
+				// Name filter: use configured filter if set, fall back to "mesh".
+				check := nameFilter
+				if check == "" {
+					check = "mesh"
+				}
+				hasName := strings.Contains(strings.ToLower(name), check)
+
+				if !hasNUS && !hasName {
 					return
 				}
 

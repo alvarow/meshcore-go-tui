@@ -1,6 +1,9 @@
+# Local context file — not for version control
+CONTEXT.md
+
 # Build output
-meshcore-cli
-meshcore-cli-*
+meshcore-tui
+meshcore-tui-*
 *.exe
 
 # Go

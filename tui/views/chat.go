@@ -11,7 +11,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/meshcore-go/go-cli/storage"
+	"github.com/alvarow/meshcore-go-tui/storage"
 	meshcore "github.com/meshcore-go/meshcore-go"
 	"github.com/meshcore-go/meshcore-go/companion"
 	"github.com/meshcore-go/meshcore-go/companion/client"

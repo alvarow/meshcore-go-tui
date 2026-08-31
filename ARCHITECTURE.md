@@ -2,7 +2,7 @@
 
 ## Overview
 
-`meshcore-go-cli` is a thin TUI shell around the `meshcore-go` SDK. It provides
+`meshcore-go-tui` is a thin TUI shell around the `meshcore-go` SDK. It provides
 transport (BLE), configuration, persistence, and a BubbleTea UI. All protocol
 logic — packet framing, crypto, routing, contact management — lives in the SDK.
 
@@ -26,7 +26,7 @@ logic — packet framing, crypto, routing, contact management — lives in the S
 ## Directory layout
 
 ```
-meshcore-go-cli/
+meshcore-go-tui/
 ├── main.go               entry point → cmd.Execute()
 ├── Makefile
 ├── go.mod / go.sum
@@ -500,7 +500,7 @@ xcode-select --install
 go build .
 
 # 3. Sign the binary (required on macOS 10.15+ to use Bluetooth)
-codesign --sign - ./meshcore-cli
+codesign --sign - ./meshcore-tui
 ```
 
 The OS will prompt for Bluetooth permission on first run. For distribution,

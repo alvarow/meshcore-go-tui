@@ -1,5 +1,5 @@
-BINARY   := meshcore-cli
-MODULE   := github.com/meshcore-go/go-cli
+BINARY   := meshcore-tui
+MODULE   := github.com/alvarow/meshcore-go-tui
 VERSION  := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS  := -ldflags "-X $(MODULE)/cmd.Version=$(VERSION) -s -w"
 

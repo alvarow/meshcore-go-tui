@@ -8,9 +8,9 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/meshcore-go/go-cli/config"
-	"github.com/meshcore-go/go-cli/storage"
-	"github.com/meshcore-go/go-cli/tui/views"
+	"github.com/alvarow/meshcore-go-tui/config"
+	"github.com/alvarow/meshcore-go-tui/storage"
+	"github.com/alvarow/meshcore-go-tui/tui/views"
 	"github.com/meshcore-go/meshcore-go/companion/client"
 )
 

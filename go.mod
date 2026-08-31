@@ -1,4 +1,4 @@
-module github.com/meshcore-go/go-cli
+module github.com/alvarow/meshcore-go-tui
 
 go 1.26.1
 
@@ -9,6 +9,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/meshcore-go/meshcore-go v1.1.0
 	github.com/meshcore-go/meshcore-go/companion/transport v1.1.0
+	go.etcd.io/bbolt v1.5.0
 	tinygo.org/x/bluetooth v0.15.0
 )
 
@@ -45,11 +46,8 @@ require (
 	github.com/tinygo-org/pio v0.3.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.bug.st/serial v1.6.4 // indirect
-	go.etcd.io/bbolt v1.5.0 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
 )
-
-replace github.com/meshcore-go/meshcore-go => /home/alvaro/src/meshcore-go-main

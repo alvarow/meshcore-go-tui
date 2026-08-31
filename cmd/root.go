@@ -9,12 +9,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/meshcore-go/go-cli/ble"
-	"github.com/meshcore-go/go-cli/config"
-	"github.com/meshcore-go/go-cli/storage"
-	"github.com/meshcore-go/go-cli/tui"
-	"github.com/meshcore-go/go-cli/tui/scanner"
-	"github.com/meshcore-go/go-cli/tui/views"
+	"github.com/alvarow/meshcore-go-tui/ble"
+	"github.com/alvarow/meshcore-go-tui/config"
+	"github.com/alvarow/meshcore-go-tui/storage"
+	"github.com/alvarow/meshcore-go-tui/tui"
+	"github.com/alvarow/meshcore-go-tui/tui/scanner"
+	"github.com/alvarow/meshcore-go-tui/tui/views"
 	"github.com/meshcore-go/meshcore-go/companion"
 	meshclient "github.com/meshcore-go/meshcore-go/companion/client"
 	companionTransport "github.com/meshcore-go/meshcore-go/companion/transport"
@@ -53,8 +53,8 @@ func Execute() {
 			if errors.Is(err, scanner.ErrBLEUnavailable) {
 				fmt.Fprintln(os.Stderr, `No Bluetooth adapter on this machine.
 
-To connect via serial:  meshcore-cli --transport serial --device /dev/ttyUSB0
-To connect via TCP:     meshcore-cli --transport tcp --device host:port
+To connect via serial:  meshcore-tui --transport serial --device /dev/ttyUSB0
+To connect via TCP:     meshcore-tui --transport tcp --device host:port
 
 To set a default in config (~/.config/meshcore/config.toml):
   default_transport = "serial"
@@ -115,7 +115,7 @@ To set a default in config (~/.config/meshcore/config.toml):
 			fmt.Fprintf(os.Stderr, "device query: %v\n", err)
 		}
 
-		self, err := c.AppStart(ctx, 1, "meshcore-cli")
+		self, err := c.AppStart(ctx, 1, "meshcore-tui")
 		if err != nil {
 			p.Send(tui.ErrorMsg{Err: fmt.Errorf("app start: %w", err)})
 			return

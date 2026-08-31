@@ -1,6 +1,6 @@
 # Build Guide
 
-Step-by-step instructions to build `meshcore-cli` on each supported platform.
+Step-by-step instructions to build `meshcore-tui` on each supported platform.
 
 ---
 
@@ -46,7 +46,7 @@ sudo systemctl enable --now bluetooth
 
 Build:
 ```bash
-go build -o meshcore-cli .
+go build -o meshcore-tui .
 # or
 make
 ```
@@ -55,13 +55,13 @@ make
 
 No extra packages required beyond Go itself:
 ```bash
-go build -o meshcore-cli .
+go build -o meshcore-tui .
 ```
 
 Use with:
 ```bash
-./meshcore-cli --transport serial --device /dev/ttyUSB0
-./meshcore-cli --transport tcp    --device 192.168.1.100:3000
+./meshcore-tui --transport serial --device /dev/ttyUSB0
+./meshcore-tui --transport tcp    --device 192.168.1.100:3000
 ```
 
 ---
@@ -81,7 +81,7 @@ Full Xcode is not needed.
 
 **2. Build**
 ```bash
-go build -o meshcore-cli .
+go build -o meshcore-tui .
 # or
 make
 ```
@@ -91,7 +91,7 @@ make
 macOS 10.15+ requires a signed binary to access Bluetooth:
 ```bash
 # Ad-hoc signing — for local use only
-codesign --sign - ./meshcore-cli
+codesign --sign - ./meshcore-tui
 ```
 
 For distribution (sharing the binary with others), a Developer ID certificate
@@ -106,9 +106,9 @@ If the dialog doesn't appear, check System Settings → Privacy & Security → B
 
 No Xcode or signing needed:
 ```bash
-go build -o meshcore-cli .
-./meshcore-cli --transport serial --device /dev/tty.usbserial-0001
-./meshcore-cli --transport tcp    --device 192.168.1.100:3000
+go build -o meshcore-tui .
+./meshcore-tui --transport serial --device /dev/tty.usbserial-0001
+./meshcore-tui --transport tcp    --device 192.168.1.100:3000
 ```
 
 ---
@@ -147,7 +147,7 @@ gcc --version   # should print mingw-w64 gcc
 From PowerShell or CMD (not MSYS2):
 ```powershell
 set CGO_ENABLED=1
-go build -o meshcore-cli.exe .
+go build -o meshcore-tui.exe .
 ```
 
 Or with make (if you have GNU make via MSYS2):
@@ -164,9 +164,9 @@ Windows will prompt for Bluetooth permission on first use via a system dialog.
 No MinGW or CGo needed:
 ```powershell
 set CGO_ENABLED=0
-go build -o meshcore-cli.exe .
-meshcore-cli.exe --transport serial --device COM3
-meshcore-cli.exe --transport tcp    --device 192.168.1.100:3000
+go build -o meshcore-tui.exe .
+meshcore-tui.exe --transport serial --device COM3
+meshcore-tui.exe --transport tcp    --device 192.168.1.100:3000
 ```
 
 ---
@@ -192,13 +192,13 @@ Serial and TCP builds have no CGo dependencies and cross-compile freely.
 
 ```bash
 # From Linux → macOS arm64 (Apple Silicon)
-GOOS=darwin  GOARCH=arm64  CGO_ENABLED=0 go build -o meshcore-cli-darwin-arm64  .
+GOOS=darwin  GOARCH=arm64  CGO_ENABLED=0 go build -o meshcore-tui-darwin-arm64  .
 
 # From Linux → macOS amd64 (Intel)
-GOOS=darwin  GOARCH=amd64  CGO_ENABLED=0 go build -o meshcore-cli-darwin-amd64  .
+GOOS=darwin  GOARCH=amd64  CGO_ENABLED=0 go build -o meshcore-tui-darwin-amd64  .
 
 # From Linux → Windows amd64
-GOOS=windows GOARCH=amd64  CGO_ENABLED=0 go build -o meshcore-cli-windows-amd64.exe .
+GOOS=windows GOARCH=amd64  CGO_ENABLED=0 go build -o meshcore-tui-windows-amd64.exe .
 ```
 
 Or use the Makefile targets:
@@ -220,16 +220,16 @@ make build-windows-amd64
 ## Verify the build
 
 ```bash
-./meshcore-cli --help          # shows flags
-./meshcore-cli --transport tcp --device 127.0.0.1:3000   # connect without BLE
+./meshcore-tui --help          # shows flags
+./meshcore-tui --transport tcp --device 127.0.0.1:3000   # connect without BLE
 ```
 
 Expected output on a machine without Bluetooth when run without flags:
 ```
 No Bluetooth adapter found.
 
-To connect via serial:  meshcore-cli --transport serial --device /dev/ttyUSB0
-To connect via TCP:     meshcore-cli --transport tcp    --device host:port
+To connect via serial:  meshcore-tui --transport serial --device /dev/ttyUSB0
+To connect via TCP:     meshcore-tui --transport tcp    --device host:port
 ```
 
 ---

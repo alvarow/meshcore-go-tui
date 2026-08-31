@@ -1,4 +1,4 @@
-# meshcore-go-cli
+# meshcore-go-tui
 
 A terminal UI companion client for [MeshCore](https://github.com/ripplebiz/MeshCore) mesh radio nodes,
 written in Go with [BubbleTea](https://github.com/charmbracelet/bubbletea).
@@ -35,7 +35,7 @@ Runs on Linux today; macOS and Windows support is a planned next step.
 ## Build
 
 ```bash
-make            # build for current platform → ./meshcore-cli
+make            # build for current platform → ./meshcore-tui
 make build-all  # cross-compile all targets
 ```
 
@@ -43,19 +43,19 @@ make build-all  # cross-compile all targets
 
 ```bash
 # BLE scan — interactive picker when no device is configured
-./meshcore-cli
+./meshcore-tui
 
 # BLE — direct address (skips scan)
-./meshcore-cli --device AA:BB:CC:DD:EE:FF
+./meshcore-tui --device AA:BB:CC:DD:EE:FF
 
 # Serial (no Bluetooth needed)
-./meshcore-cli --transport serial --device /dev/ttyUSB0
+./meshcore-tui --transport serial --device /dev/ttyUSB0
 
 # TCP
-./meshcore-cli --transport tcp --device 192.168.1.100:3000
+./meshcore-tui --transport tcp --device 192.168.1.100:3000
 
 # Named profile from config
-./meshcore-cli --profile home
+./meshcore-tui --profile home
 ```
 
 ## Configuration

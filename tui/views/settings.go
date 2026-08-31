@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/meshcore-go/go-cli/config"
+	"github.com/alvarow/meshcore-go-tui/config"
 )
 
 type settingsFocus int

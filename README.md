@@ -1,7 +1,8 @@
 # meshcore-go-tui
 
 A terminal UI companion client for [MeshCore](https://github.com/ripplebiz/MeshCore) mesh radio nodes,
-written in Go with [BubbleTea](https://github.com/charmbracelet/bubbletea).
+built in Go using the [meshcore-go](https://github.com/meshcore-go/meshcore-go) companion SDK and
+[BubbleTea](https://github.com/charmbracelet/bubbletea) for the TUI.
 
 Connects to a MeshCore node over **Bluetooth LE**, **Serial**, or **TCP**.
 Runs on Linux today; macOS and Windows support is a planned next step.
@@ -196,9 +197,16 @@ contact and channel on every connection.
 | `↑` / `k` | Move selection up |
 | `↓` / `j` | Move selection down |
 
-## Reference library
+## Dependencies
 
-The MeshCore Go SDK lives at `/home/alvaro/src/meshcore-go-main`
-(module: `github.com/meshcore-go/meshcore-go`). The `go.mod` uses a `replace`
-directive pointing there until the library is published. See `ARCHITECTURE.md`
-for protocol details and design decisions.
+| Package | Role |
+|---------|------|
+| [meshcore-go/meshcore-go](https://github.com/meshcore-go/meshcore-go) | MeshCore companion SDK — protocol, crypto, typed client API |
+| [charmbracelet/bubbletea](https://github.com/charmbracelet/bubbletea) | TUI framework (Elm architecture) |
+| [charmbracelet/bubbles](https://github.com/charmbracelet/bubbles) | TUI components (viewport, textinput, list, spinner) |
+| [charmbracelet/lipgloss](https://github.com/charmbracelet/lipgloss) | TUI styling and layout |
+| [tinygo-org/bluetooth](https://tinygo.org/x/bluetooth) | BLE transport (Linux/macOS/Windows) |
+| [etcd-io/bbolt](https://github.com/etcd-io/bbolt) | Message persistence (embedded key-value store) |
+| [BurntSushi/toml](https://github.com/BurntSushi/toml) | Config file parsing |
+
+See `ARCHITECTURE.md` for protocol details and design decisions.

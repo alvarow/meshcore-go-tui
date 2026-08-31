@@ -24,7 +24,7 @@ type clearErrMsg struct{}
 type App struct {
 	tabs       []views.View
 	activeTab  int
-	unread     [4]int
+	unread     [5]int
 	connected  bool
 	reconnecting bool
 	deviceName string

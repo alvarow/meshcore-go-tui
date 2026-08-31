@@ -285,6 +285,7 @@ func startScan(done chan struct{}, nameFilter string) tea.Cmd {
 		case msg := <-result:
 			return msg
 		case <-done:
+			_ = adapter.StopScan()
 			return nil
 		}
 	}

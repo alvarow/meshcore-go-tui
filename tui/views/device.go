@@ -56,7 +56,7 @@ func (v *DeviceView) View() string {
 	value := lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0"))
 
 	pubkeyHex := hex.EncodeToString(v.self.PublicKey[:6]) + "..."
-	freqMHz := float64(v.self.RadioFrequency) / 1_000_000.0
+	freqMHz := float64(v.self.RadioFrequency) / 1_000.0  // field is in kHz
 	bwKHz := float64(v.self.RadioBandwidth) / 1_000.0
 
 	var lines []string

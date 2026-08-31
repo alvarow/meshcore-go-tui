@@ -27,12 +27,14 @@ var (
 	flagDevice    string
 	flagTransport string
 	flagProfile   string
+	flagDebug     bool
 )
 
 func init() {
 	flag.StringVar(&flagDevice, "device", "", "BLE address, serial port (/dev/ttyUSB0), or TCP host:port")
 	flag.StringVar(&flagTransport, "transport", "", "Transport type: ble, serial, tcp (overrides config)")
 	flag.StringVar(&flagProfile, "profile", "", "Config profile name to use")
+	flag.BoolVar(&flagDebug, "debug", false, "Log BLE operations and protocol messages to stderr")
 }
 
 func Execute() {
@@ -83,6 +85,13 @@ To set a default in config (~/.config/meshcore/config.toml):
 	app := tui.New(device, nil, store, cfg)
 	p := tea.NewProgram(app, tea.WithAltScreen())
 
+	debugf := func(string, ...any) {}
+	if flagDebug {
+		debugf = func(format string, args ...any) {
+			fmt.Fprintf(os.Stderr, "[debug] "+format+"\n", args...)
+		}
+	}
+
 	go func() {
 		t, err := buildTransport(transport, device)
 		if err != nil {
@@ -90,11 +99,31 @@ To set a default in config (~/.config/meshcore/config.toml):
 			return
 		}
 
+		if flagDebug {
+			if bt, ok := t.(*ble.Transport); ok {
+				bt.EnableDebug()
+			}
+		}
+
 		ctx := context.Background()
-		if err := t.Connect(ctx); err != nil {
-			p.Send(tui.ErrorMsg{Err: fmt.Errorf("connect: %w", err)})
+		debugf("connecting to %s", device)
+
+		type connectResult struct{ err error }
+		connCh := make(chan connectResult, 1)
+		go func() { connCh <- connectResult{t.Connect(ctx)} }()
+
+		var connectErr error
+		select {
+		case res := <-connCh:
+			connectErr = res.err
+		case <-time.After(30 * time.Second):
+			connectErr = fmt.Errorf("timed out after 30s (device not in range or not advertising?)")
+		}
+		if connectErr != nil {
+			p.Send(tui.ErrorMsg{Err: fmt.Errorf("connect: %w", connectErr)})
 			return
 		}
+		debugf("BLE connected, starting session")
 
 		// Wire BLE disconnect/reconnect events into the TUI status bar.
 		if bt, ok := t.(*ble.Transport); ok {
@@ -110,21 +139,32 @@ To set a default in config (~/.config/meshcore/config.toml):
 
 		// Session startup sequence.
 		deviceName := device
-		if _, err := c.DeviceQuery(ctx); err != nil {
-			// Non-fatal: older firmware may not support DeviceQuery.
+
+		// DeviceQuery is non-fatal (older firmware may not support it), but must
+		// have a timeout — if the device ignores the command it never responds.
+		debugf("device query")
+		queryCtx, queryCancel := context.WithTimeout(ctx, 5*time.Second)
+		if _, err := c.DeviceQuery(queryCtx); err != nil {
 			fmt.Fprintf(os.Stderr, "device query: %v\n", err)
 		}
+		queryCancel()
 
-		self, err := c.AppStart(ctx, 1, "meshcore-tui")
+		debugf("app start")
+		startCtx, startCancel := context.WithTimeout(ctx, 10*time.Second)
+		self, err := c.AppStart(startCtx, 1, "meshcore-tui")
+		startCancel()
 		if err != nil {
 			p.Send(tui.ErrorMsg{Err: fmt.Errorf("app start: %w", err)})
 			return
 		}
+		debugf("app start ok, self=%q", self.Name)
 		if self.Name != "" {
 			deviceName = self.Name
 		}
 
-		contacts, err := c.GetContacts(ctx)
+		contactsCtx, contactsCancel := context.WithTimeout(ctx, 10*time.Second)
+		contacts, err := c.GetContacts(contactsCtx)
+		contactsCancel()
 		if err != nil {
 			// Non-fatal: continue with empty contacts.
 			fmt.Fprintf(os.Stderr, "get contacts: %v\n", err)
@@ -132,7 +172,9 @@ To set a default in config (~/.config/meshcore/config.toml):
 
 		var channels []companion.ChannelInfoResponse
 		for i := byte(0); i < 8; i++ {
-			ch, err := c.GetChannel(ctx, i)
+			chCtx, chCancel := context.WithTimeout(ctx, 5*time.Second)
+			ch, err := c.GetChannel(chCtx, i)
+			chCancel()
 			if err != nil {
 				break
 			}

@@ -3,9 +3,12 @@ package ble
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/godbus/dbus/v5"
 	"github.com/meshcore-go/meshcore-go/companion"
 	"tinygo.org/x/bluetooth"
 )
@@ -43,6 +46,7 @@ const defaultChunkSize = 20
 type Transport struct {
 	addr       string // empty = scan
 	nameFilter string // optional advertised-name filter
+	debugf     func(string, ...any)
 
 	mu                sync.Mutex
 	adapter           *bluetooth.Adapter
@@ -59,12 +63,15 @@ type Transport struct {
 	reconnectHandler  func()
 }
 
+func noop(string, ...any) {}
+
 // New returns a Transport that connects directly to addr (BLE MAC address
 // string). If addr is empty the first NUS-advertising device found by scan
 // is used.
 func New(addr string) *Transport {
 	return &Transport{
 		addr:      addr,
+		debugf:    noop,
 		parser:    companion.NewFrameParser(),
 		chunkSize: defaultChunkSize,
 		done:      make(chan struct{}),
@@ -78,9 +85,17 @@ func New(addr string) *Transport {
 func NewWithNameFilter(nameFilter string) *Transport {
 	return &Transport{
 		nameFilter: nameFilter,
+		debugf:     noop,
 		parser:     companion.NewFrameParser(),
 		chunkSize:  defaultChunkSize,
 		done:       make(chan struct{}),
+	}
+}
+
+// EnableDebug routes debug output to stderr.
+func (t *Transport) EnableDebug() {
+	t.debugf = func(format string, args ...any) {
+		fmt.Fprintf(os.Stderr, "[ble] "+format+"\n", args...)
 	}
 }
 
@@ -162,24 +177,40 @@ func (t *Transport) connectDevice(ctx context.Context, adapter *bluetooth.Adapte
 		return err
 	}
 
+	// tinygo/bluetooth v0.13.0 has a race: Device1.Connect() blocks until the
+	// connection is established, but the "Connected" D-Bus signal fires while
+	// that blocking call is in progress. Because the signal channel is
+	// unbuffered, godbus drops it, and the post-call goroutine waiting for the
+	// signal blocks forever. Work around it by driving the BlueZ connection
+	// ourselves with a context-aware D-Bus call first; adapter.Connect() then
+	// sees the device already connected and takes the fast path.
+	t.debugf("bleDirectConnect %s", addr)
+	if err := bleDirectConnect(ctx, addr.String()); err != nil {
+		return fmt.Errorf("connect to %s: %w", addr, err)
+	}
+	t.debugf("bleDirectConnect done")
+
+	t.debugf("adapter.Connect")
 	device, err := adapter.Connect(addr, bluetooth.ConnectionParams{})
 	if err != nil {
 		return fmt.Errorf("connect to %s: %w", addr, err)
 	}
+	t.debugf("adapter.Connect done")
 
+	t.debugf("DiscoverServices")
 	svcs, err := device.DiscoverServices([]bluetooth.UUID{nusSvcUUID})
+	t.debugf("DiscoverServices done: err=%v len=%d", err, len(svcs))
 	if err != nil {
-		_ = device.Disconnect()
 		return fmt.Errorf("discover NUS service: %w", err)
 	}
 	if len(svcs) == 0 {
-		_ = device.Disconnect()
 		return fmt.Errorf("NUS service not found on device")
 	}
 
+	t.debugf("DiscoverCharacteristics")
 	chars, err := svcs[0].DiscoverCharacteristics([]bluetooth.UUID{nusRxUUID, nusTxUUID})
+	t.debugf("DiscoverCharacteristics done: err=%v", err)
 	if err != nil {
-		_ = device.Disconnect()
 		return fmt.Errorf("discover NUS characteristics: %w", err)
 	}
 
@@ -193,10 +224,18 @@ func (t *Transport) connectDevice(ctx context.Context, adapter *bluetooth.Adapte
 		}
 	}
 
+	// MeshCore firmware disconnects the BLE link after a short idle timeout if
+	// no protocol data is received. Send a raw DeviceQuery to the RX characteristic
+	// to reset the firmware's idle timer before the CCCD write in StartNotify.
+	// BLE uses unframed raw bytes — no FrameEncode wrapper.
+	keepalive := companion.DeviceQueryCommand{AppTargetVersion: companion.SupportedProtocolVersion}.ToBytes()
+	_, _ = rxChar.WriteWithoutResponse(keepalive)
+
+	t.debugf("EnableNotifications")
 	if err := txChar.EnableNotifications(t.onNotification); err != nil {
-		_ = device.Disconnect()
 		return fmt.Errorf("enable NUS TX notifications: %w", err)
 	}
+	t.debugf("EnableNotifications done")
 
 	// Read the ATT MTU negotiated by BlueZ. Subtract 3 bytes of ATT overhead.
 	// Fall back to the current chunkSize if unavailable.
@@ -272,11 +311,9 @@ func (t *Transport) Close() error {
 }
 
 func (t *Transport) Send(command []byte) error {
-	frame, err := companion.FrameEncode(companion.FrameTypeOutgoing, command)
-	if err != nil {
-		return fmt.Errorf("encode frame: %w", err)
-	}
-
+	t.debugf("Send: cmd[0]=%d len=%d", command[0], len(command))
+	// BLE uses raw (unframed) bytes — no FrameEncode wrapper.
+	// Each write is a discrete GATT packet; framing is only needed for streams.
 	t.mu.Lock()
 	if !t.connected {
 		t.mu.Unlock()
@@ -286,54 +323,56 @@ func (t *Transport) Send(command []byte) error {
 	chunk := t.chunkSize
 	t.mu.Unlock()
 
-	for len(frame) > 0 {
+	data := command
+	for len(data) > 0 {
 		n := chunk
-		if n > len(frame) {
-			n = len(frame)
+		if n > len(data) {
+			n = len(data)
 		}
-		if _, err := rxChar.WriteWithoutResponse(frame[:n]); err != nil {
+		if _, err := rxChar.WriteWithoutResponse(data[:n]); err != nil {
 			return fmt.Errorf("write chunk: %w", err)
 		}
-		frame = frame[n:]
+		data = data[n:]
 	}
 	return nil
 }
 
 func (t *Transport) onNotification(buf []byte) {
+	t.debugf("notification: %d bytes code=0x%02x", len(buf), buf[0])
+	// BLE uses raw (unframed) responses — each notification IS a complete response.
 	t.mu.Lock()
-	frames := t.parser.Feed(buf)
 	rh := t.responseHandler
 	eh := t.errorHandler
 	t.mu.Unlock()
 
-	for _, frame := range frames {
-		resp, err := companion.ParseResponse(frame.Data)
-		if err != nil {
-			if eh != nil {
-				eh(fmt.Errorf("parse response: %w", err))
-			}
-			continue
+	resp, err := companion.ParseResponse(buf)
+	if err != nil {
+		if eh != nil {
+			eh(fmt.Errorf("parse response: %w", err))
 		}
-		if rh != nil {
-			rh(resp)
-		}
+		return
+	}
+	if rh != nil {
+		rh(resp)
 	}
 }
 
 func (t *Transport) resolveAddress(ctx context.Context, adapter *bluetooth.Adapter) (bluetooth.Address, error) {
 	if t.addr != "" {
+		// Device address is known — connect directly. BlueZ can reconnect to a
+		// bonded device without an active scan. Address type is ignored on Linux.
 		var addr bluetooth.Address
 		addr.Set(t.addr)
 		return addr, nil
 	}
 
-	found := make(chan bluetooth.ScanResult, 1)
+	found := make(chan bluetooth.Address, 1)
 	scanErr := make(chan error, 1)
 
 	go func() {
 		err := adapter.Scan(func(a *bluetooth.Adapter, result bluetooth.ScanResult) {
 			if t.matches(result) {
-				found <- result
+				found <- result.Address
 				_ = a.StopScan()
 			}
 		})
@@ -343,8 +382,8 @@ func (t *Transport) resolveAddress(ctx context.Context, adapter *bluetooth.Adapt
 	}()
 
 	select {
-	case result := <-found:
-		return result.Address, nil
+	case addr := <-found:
+		return addr, nil
 	case err := <-scanErr:
 		return bluetooth.Address{}, fmt.Errorf("BLE scan: %w", err)
 	case <-ctx.Done():
@@ -396,4 +435,31 @@ func equalFold(a, b string) bool {
 		}
 	}
 	return true
+}
+
+// bleDirectConnect calls BlueZ's Device1.Connect() directly via D-Bus,
+// bypassing tinygo/bluetooth's adapter.Connect() which has a race condition:
+// it uses an unbuffered signal channel so the "Connected" D-Bus signal gets
+// dropped while the blocking Connect call is in progress. This function uses
+// CallWithContext so the timeout is properly honoured.
+func bleDirectConnect(ctx context.Context, macAddr string) error {
+	bus, err := dbus.SystemBus()
+	if err != nil {
+		return fmt.Errorf("D-Bus system bus: %w", err)
+	}
+
+	devPath := dbus.ObjectPath("/org/bluez/hci0/dev_" +
+		strings.ReplaceAll(strings.ToUpper(macAddr), ":", "_"))
+	dev := bus.Object("org.bluez", devPath)
+
+	// Fast path: already connected.
+	prop, err := dev.GetProperty("org.bluez.Device1.Connected")
+	if err == nil {
+		if c, _ := prop.Value().(bool); c {
+			return nil
+		}
+	}
+
+	call := dev.CallWithContext(ctx, "org.bluez.Device1.Connect", 0)
+	return call.Err
 }

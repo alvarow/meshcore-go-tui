@@ -267,11 +267,13 @@ To set a default in config (~/.config/meshcore/config.toml):
 
 		c.OnPush(companion.PushStatusResponse, func(resp companion.Response) {
 			sr := resp.Data.(companion.PushStatusResp)
+			debugf("status response from %x", sr.PubKeyPrefix)
 			p.Send(views.PeerStatusMsg{PubKeyPrefix: sr.PubKeyPrefix})
 		})
 
 		c.OnPush(companion.PushPathDiscoveryResponse, func(resp companion.Response) {
 			pr := resp.Data.(companion.PushPathDiscoveryResp)
+			debugf("path discovery response from %x: out=%d in=%d", pr.PubKeyPrefix, pr.OutPathLen, pr.InPathLen)
 			p.Send(views.PathDiscoveryMsg{
 				PubKeyPrefix: pr.PubKeyPrefix,
 				OutHops:      pr.OutPathLen,

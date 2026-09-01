@@ -33,7 +33,7 @@ const defaultChunkSize = 20
 // Transport implements companion/transport.Transport over BLE Nordic UART Service.
 //
 // MTU: BlueZ negotiates ATT MTU automatically during connection. After connect,
-// GetMTU() is called on the TX characteristic to discover the usable payload
+// GetMTU() is called on the RX characteristic to discover the usable payload
 // size (MTU − 3 ATT overhead). If that fails the chunk size stays at 20 bytes.
 //
 // Reconnect: a background goroutine watches for BlueZ disconnect events via
@@ -53,7 +53,6 @@ type Transport struct {
 	device            bluetooth.Device
 	devAddr           bluetooth.Address
 	rxChar            bluetooth.DeviceCharacteristic
-	parser            *companion.FrameParser
 	chunkSize         int
 	connected         bool
 	done              chan struct{}
@@ -72,7 +71,6 @@ func New(addr string) *Transport {
 	return &Transport{
 		addr:      addr,
 		debugf:    noop,
-		parser:    companion.NewFrameParser(),
 		chunkSize: defaultChunkSize,
 		done:      make(chan struct{}),
 	}
@@ -86,7 +84,6 @@ func NewWithNameFilter(nameFilter string) *Transport {
 	return &Transport{
 		nameFilter: nameFilter,
 		debugf:     noop,
-		parser:     companion.NewFrameParser(),
 		chunkSize:  defaultChunkSize,
 		done:       make(chan struct{}),
 	}
@@ -237,9 +234,9 @@ func (t *Transport) connectDevice(ctx context.Context, adapter *bluetooth.Adapte
 	}
 	t.debugf("EnableNotifications done")
 
-	// Read the ATT MTU negotiated by BlueZ. Subtract 3 bytes of ATT overhead.
-	// Fall back to the current chunkSize if unavailable.
-	if mtu, err := txChar.GetMTU(); err == nil && mtu > 3 {
+	// Read the ATT MTU negotiated by BlueZ from the RX characteristic (the one
+	// we write to). Subtract 3 bytes of ATT overhead. Fall back if unavailable.
+	if mtu, err := rxChar.GetMTU(); err == nil && mtu > 3 {
 		t.mu.Lock()
 		t.chunkSize = int(mtu) - 3
 		t.mu.Unlock()

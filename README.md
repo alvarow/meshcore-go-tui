@@ -169,12 +169,9 @@ contact and channel on every connection.
 
 | Key | Action |
 |-----|--------|
-| `1` | Switch to Chat tab |
-| `2` | Switch to Channels tab |
-| `3` | Switch to Nodes tab |
-| `4` | Switch to Device tab |
-| `Tab` | Next tab |
-| `Shift+Tab` | Previous tab |
+| `1` – `5` | Switch directly to tab 1–5 |
+| `Ctrl+Tab` | Next tab |
+| `Ctrl+Shift+Tab` | Previous tab |
 | `q` / `Ctrl+C` | Quit |
 
 ### BLE scan picker (startup)

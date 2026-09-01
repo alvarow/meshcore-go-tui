@@ -6,7 +6,7 @@ LDFLAGS  := -ldflags "-X $(MODULE)/cmd.Version=$(VERSION) -s -w"
 GOOS     ?= $(shell go env GOOS)
 GOARCH   ?= $(shell go env GOARCH)
 
-DEBUG_LOG ?= /tmp/meshcore-debug.log
+DEBUG_LOG ?= /tmp/meshcore-go-tui.log
 
 .PHONY: all build clean run debug-run lint test install
 

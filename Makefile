@@ -6,7 +6,9 @@ LDFLAGS  := -ldflags "-X $(MODULE)/cmd.Version=$(VERSION) -s -w"
 GOOS     ?= $(shell go env GOOS)
 GOARCH   ?= $(shell go env GOARCH)
 
-.PHONY: all build clean run lint test install
+DEBUG_LOG ?= /tmp/meshcore-debug.log
+
+.PHONY: all build clean run debug-run lint test install
 
 all: build
 
@@ -15,6 +17,10 @@ build:
 
 run:
 	go run . $(ARGS)
+
+debug-run: build
+	@echo "Debug log: $(DEBUG_LOG)"
+	./$(BINARY) --debug $(ARGS) 2>"$(DEBUG_LOG)"; cat "$(DEBUG_LOG)"
 
 test:
 	go test ./...

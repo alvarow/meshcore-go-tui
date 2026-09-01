@@ -222,6 +222,12 @@ To set a default in config (~/.config/meshcore/config.toml):
 
 		c.OnPush(companion.PushNewAdvert, func(resp companion.Response) {
 			advert := resp.Data.(companion.PushNewAdvertResponse)
+			lastSeen := "unknown"
+			if advert.LastAdvert > 0 {
+				lastSeen = time.Unix(int64(advert.LastAdvert), 0).Format("2006-01-02 15:04:05")
+			}
+			debugf("advert: %q pubkey=%x type=%d last_seen=%s",
+				advert.AdvertName, advert.PublicKey[:6], advert.Type, lastSeen)
 			p.Send(views.NodeAdvertMsg{
 				Name:     advert.AdvertName,
 				NodeType: advert.Type,
@@ -232,6 +238,7 @@ To set a default in config (~/.config/meshcore/config.toml):
 		c.OnPush(companion.PushAdvert, func(resp companion.Response) {
 			// Older advert push — only carries pubkey, no name. Upsert with empty name.
 			advert := resp.Data.(companion.PushAdvertResponse)
+			debugf("advert (legacy): pubkey=%x", advert.PublicKey[:6])
 			p.Send(views.NodeAdvertMsg{PubKey: advert.PublicKey})
 		})
 

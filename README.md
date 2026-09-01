@@ -228,6 +228,12 @@ Outbound direct messages show a delivery status indicator after the text:
 | `✓ 42ms` | Remote node confirmed receipt; round-trip time shown |
 | `? no ack  r=retry` | No confirmation after 30 s; press `r` to retry (up to 3×) |
 
+After 3 retries with no acknowledgement the app automatically triggers a
+**flood fallback**: `SendPathDiscoveryReq` is sent concurrently with a final
+send attempt, forcing the mesh firmware to discover a fresh route.  This
+handles the common mobile-mesh case where either party has moved and the
+cached path to the recipient is stale — no user action required.
+
 | Key | Action |
 |-----|--------|
 | `↑` / `↓` | Move between contacts |
@@ -280,6 +286,11 @@ exceptional work.  [Bubble Tea](https://github.com/charmbracelet/bubbletea),
 [Lip Gloss](https://github.com/charmbracelet/lipgloss) make building polished
 terminal UIs in Go a genuine pleasure — if you've enjoyed using this app,
 go give them a ⭐.
+
+The [meshcore-go SDK](https://github.com/meshcore-go/meshcore-go) does the
+heavy lifting of the MeshCore companion protocol — typed commands, response
+parsing, push event dispatch, and the cryptographic identity layer.
+Without it this client would have taken months instead of days.
 
 ## Dependencies
 

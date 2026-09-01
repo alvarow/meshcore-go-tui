@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alvarow/meshcore-go-tui/config"
+	"github.com/alvarow/meshcore-go-tui/storage"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/alvarow/meshcore-go-tui/config"
-	"github.com/alvarow/meshcore-go-tui/storage"
 	meshcore "github.com/meshcore-go/meshcore-go"
 	"github.com/meshcore-go/meshcore-go/companion"
 	"github.com/meshcore-go/meshcore-go/companion/client"
@@ -23,11 +23,11 @@ type MsgStatus int
 
 const (
 	StatusReceived MsgStatus = iota
-	StatusSending  // BLE write in progress
-	StatusSent     // device accepted (SentResponse received); waiting for remote ack
-	StatusAcked    // remote ack received (PushSendConfirmed)
-	StatusNoAck    // no remote ack within timeout
-	StatusFailed   // send error
+	StatusSending            // BLE write in progress
+	StatusSent               // device accepted (SentResponse received); waiting for remote ack
+	StatusAcked              // remote ack received (PushSendConfirmed)
+	StatusNoAck              // no remote ack within timeout
+	StatusFailed             // send error
 )
 
 type chatMessage struct {
@@ -77,6 +77,7 @@ type ChatView struct {
 	selectedMsg  int
 	offRecord    bool
 	clearPending bool
+	pingStart    map[[6]byte]time.Time // pending pings keyed by pubkey prefix
 	width        int
 	height       int
 }
@@ -94,7 +95,7 @@ func NewChatView(c *client.Client, store *storage.Store, km config.KeyMap) *Chat
 	si.CharLimit = 40
 	si.Width = listWidth - 4
 
-	return &ChatView{client: c, store: store, km: km, input: ti, searchInput: si}
+	return &ChatView{client: c, store: store, km: km, input: ti, searchInput: si, pingStart: make(map[[6]byte]time.Time)}
 }
 
 func (v *ChatView) Title() string { return "Chat" }
@@ -394,6 +395,43 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 		}
 		return v, nil
 
+	case PeerStatusMsg:
+		for i := range v.contacts {
+			var p6 [6]byte
+			copy(p6[:], v.contacts[i].contact.PublicKey[:6])
+			if p6 == m.PubKeyPrefix {
+				sys := "ping: no reply recorded"
+				if start, ok := v.pingStart[p6]; ok {
+					rtt := time.Since(start).Round(time.Millisecond)
+					delete(v.pingStart, p6)
+					sys = fmt.Sprintf("ping reply: %v", rtt)
+				}
+				v.contacts[i].messages = append(v.contacts[i].messages,
+					chatMessage{text: sys, isSystem: true, timestamp: time.Now()})
+				if i == v.selected {
+					v.rebuildViewport()
+				}
+				break
+			}
+		}
+		return v, nil
+
+	case PathDiscoveryMsg:
+		for i := range v.contacts {
+			var p6 [6]byte
+			copy(p6[:], v.contacts[i].contact.PublicKey[:6])
+			if p6 == m.PubKeyPrefix {
+				sys := fmt.Sprintf("trace: %d hops out, %d hops back", m.OutHops, m.InHops)
+				v.contacts[i].messages = append(v.contacts[i].messages,
+					chatMessage{text: sys, isSystem: true, timestamp: time.Now()})
+				if i == v.selected {
+					v.rebuildViewport()
+				}
+				break
+			}
+		}
+		return v, nil
+
 	case sendErrMsg:
 		for i := range v.contacts {
 			if m.contactKey != "" && hex.EncodeToString(v.contacts[i].contact.PublicKey[:]) != m.contactKey {
@@ -635,7 +673,38 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			return v, nil
 
 		case key.Matches(m, v.km.Send):
-			text := expandShortcodes(strings.TrimSpace(v.input.Value()))
+			raw := strings.TrimSpace(v.input.Value())
+			// Slash commands: /ping and /trace act on the selected contact.
+			if strings.ToLower(raw) == "/ping" && v.client != nil && v.selected < len(v.contacts) {
+				v.input.Reset()
+				contact := v.contacts[v.selected].contact
+				var p6 [6]byte
+				copy(p6[:], contact.PublicKey[:6])
+				v.pingStart[p6] = time.Now()
+				v.contacts[v.selected].messages = append(v.contacts[v.selected].messages,
+					chatMessage{text: "ping sent…", isSystem: true, timestamp: time.Now()})
+				v.rebuildViewport()
+				return v, pingContact(v.client, contact)
+			}
+			if strings.HasPrefix(strings.ToLower(raw), "/location ") && v.client != nil {
+				v.input.Reset()
+				return v, setLocation(v.client, raw[len("/location "):], func(sys string) {
+					if v.selected < len(v.contacts) {
+						v.contacts[v.selected].messages = append(v.contacts[v.selected].messages,
+							chatMessage{text: sys, isSystem: true, timestamp: time.Now()})
+						v.rebuildViewport()
+					}
+				})
+			}
+			if strings.ToLower(raw) == "/trace" && v.client != nil && v.selected < len(v.contacts) {
+				v.input.Reset()
+				contact := v.contacts[v.selected].contact
+				v.contacts[v.selected].messages = append(v.contacts[v.selected].messages,
+					chatMessage{text: "trace sent…", isSystem: true, timestamp: time.Now()})
+				v.rebuildViewport()
+				return v, traceContact(v.client, contact)
+			}
+			text := expandShortcodes(raw)
 			if text == "" || v.client == nil || len(v.contacts) == 0 {
 				return v, nil
 			}
@@ -832,6 +901,59 @@ func (v *ChatView) saveLastRead(idx int) {
 	key := hex.EncodeToString(v.contacts[idx].contact.PublicKey[:])
 	_ = v.store.SetLastRead(key, latest)
 	v.contacts[idx].lastRead = latest
+}
+
+// pingContact sends a status request to the peer. PeerStatusMsg arrives when
+// the peer responds; the view computes RTT from its stored pingStart time.
+func pingContact(c *client.Client, contact companion.ContactResponse) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_ = c.SendStatusReq(ctx, meshcore.NewIdentity(contact.PublicKey))
+		return nil
+	}
+}
+
+// traceContact sends a path-discovery request. PathDiscoveryMsg arrives with
+// the hop counts when the mesh responds.
+func traceContact(c *client.Client, contact companion.ContactResponse) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, _ = c.SendPathDiscoveryReq(ctx, meshcore.NewIdentity(contact.PublicKey))
+		return nil
+	}
+}
+
+// setLocation pushes GPS coordinates to the device's advertised location.
+// args is the remainder after "/location " — expected: "lat lon" in decimal degrees.
+// The firmware stores them (× 1e7 as int32) and includes them in future adverts.
+func setLocation(c *client.Client, args string, done func(string)) tea.Cmd {
+	return func() tea.Msg {
+		parts := strings.Fields(args)
+		if len(parts) != 2 {
+			done("usage: /location <lat> <lon>  (decimal degrees, e.g. 4.099645 -7.403468)")
+			return nil
+		}
+		var lat, lon float64
+		if _, err := fmt.Sscanf(parts[0], "%f", &lat); err != nil {
+			done("location: invalid latitude: " + parts[0])
+			return nil
+		}
+		if _, err := fmt.Sscanf(parts[1], "%f", &lon); err != nil {
+			done("location: invalid longitude: " + parts[1])
+			return nil
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		err := c.SetAdvertLatLon(ctx, int32(lat*1e7), int32(lon*1e7))
+		if err != nil {
+			done(fmt.Sprintf("location: %v", err))
+		} else {
+			done(fmt.Sprintf("location set: %.6f, %.6f", lat, lon))
+		}
+		return nil
+	}
 }
 
 // pathDiscovery sends a path-discovery request to force the firmware to find a

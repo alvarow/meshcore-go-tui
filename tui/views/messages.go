@@ -48,6 +48,18 @@ type ContactDeletedMsg struct {
 	PublicKey [32]byte
 }
 
+// PeerStatusMsg is sent when PushStatusResponse arrives (reply to SendStatusReq/ping).
+type PeerStatusMsg struct {
+	PubKeyPrefix [6]byte
+}
+
+// PathDiscoveryMsg is sent when PushPathDiscoveryResponse arrives (reply to SendPathDiscoveryReq/trace).
+type PathDiscoveryMsg struct {
+	PubKeyPrefix [6]byte
+	OutHops      byte
+	InHops       byte
+}
+
 // ReconnectingMsg is sent when the BLE transport detects a disconnect and begins reconnecting.
 type ReconnectingMsg struct{}
 

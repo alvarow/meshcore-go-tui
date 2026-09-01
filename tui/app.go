@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alvarow/meshcore-go-tui/config"
+	"github.com/alvarow/meshcore-go-tui/storage"
+	"github.com/alvarow/meshcore-go-tui/tui/views"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/alvarow/meshcore-go-tui/config"
-	"github.com/alvarow/meshcore-go-tui/storage"
-	"github.com/alvarow/meshcore-go-tui/tui/views"
 	"github.com/meshcore-go/meshcore-go/companion/client"
 )
 
@@ -72,7 +72,8 @@ func (a *App) Init() tea.Cmd {
 func isBroadcastMsg(msg tea.Msg) bool {
 	switch msg.(type) {
 	case views.SessionReadyMsg, views.InboundDirectMsg, views.OutboundAckMsg,
-		views.NodeAdvertMsg, views.InboundChannelMsg, views.ContactDeletedMsg:
+		views.NodeAdvertMsg, views.InboundChannelMsg, views.ContactDeletedMsg,
+		views.PeerStatusMsg, views.PathDiscoveryMsg:
 		return true
 	}
 	return false

@@ -8,13 +8,13 @@ import (
 	"os"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/alvarow/meshcore-go-tui/ble"
 	"github.com/alvarow/meshcore-go-tui/config"
 	"github.com/alvarow/meshcore-go-tui/storage"
 	"github.com/alvarow/meshcore-go-tui/tui"
 	"github.com/alvarow/meshcore-go-tui/tui/scanner"
 	"github.com/alvarow/meshcore-go-tui/tui/views"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/meshcore-go/meshcore-go/companion"
 	meshclient "github.com/meshcore-go/meshcore-go/companion/client"
 	companionTransport "github.com/meshcore-go/meshcore-go/companion/transport"
@@ -259,6 +259,20 @@ To set a default in config (~/.config/meshcore/config.toml):
 		c.OnPush(companion.PushContactDeleted, func(resp companion.Response) {
 			del := resp.Data.(companion.PushContactDeletedResponse)
 			p.Send(views.ContactDeletedMsg{PublicKey: del.PublicKey})
+		})
+
+		c.OnPush(companion.PushStatusResponse, func(resp companion.Response) {
+			sr := resp.Data.(companion.PushStatusResp)
+			p.Send(views.PeerStatusMsg{PubKeyPrefix: sr.PubKeyPrefix})
+		})
+
+		c.OnPush(companion.PushPathDiscoveryResponse, func(resp companion.Response) {
+			pr := resp.Data.(companion.PushPathDiscoveryResp)
+			p.Send(views.PathDiscoveryMsg{
+				PubKeyPrefix: pr.PubKeyPrefix,
+				OutHops:      pr.OutPathLen,
+				InHops:       pr.InPathLen,
+			})
 		})
 	}()
 

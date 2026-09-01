@@ -647,11 +647,10 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 				return v, sendAdvert(v.client)
 			}
 			return v, nil
-		case key.Matches(m, v.km.Search) && v.input.Value() == "":
-			// Only open search when the input is empty — if the user has typed
-			// something (e.g. starting a /command), let it go to the input.
+		case key.Matches(m, v.km.Search) && !v.input.Focused():
+			// Only open search when the input is blurred (Esc first to blur).
+			// While focused, / is a regular character — needed for /ping etc.
 			v.searchMode = true
-			v.input.Blur()
 			v.searchInput.Focus()
 			return v, nil
 		case m.String() == "r" && !v.input.Focused():

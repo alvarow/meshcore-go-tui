@@ -262,7 +262,7 @@ Capture a debug log:
 .B meshcore\-tui \-\-debug 2>/tmp/mc.log
 .RE
 .SH "DELIVERY CONFIRMATION"
-Outbound direct messages show a status indicator after the message text:
+Outbound direct messages cycle through the following status indicators:
 .TP
 .B \&...
 BLE write in progress.
@@ -272,7 +272,7 @@ The device accepted the message and has a cached path to the recipient.
 .TP
 .B \(bu sent (no path)
 The device sent the message as a blind mesh flood; no cached route to recipient.
-This is normal for first contact or after a path has gone stale.
+Normal for first contact or after a path has gone stale.
 .TP
 .B \(ck 42ms
 The remote node confirmed receipt (MeshCore \fIPushSendConfirmed\fR event).
@@ -280,9 +280,15 @@ Round-trip time is shown.
 .TP
 .B ? no ack
 No confirmation arrived within 30 seconds.
-Press \fBr\fR (with input blurred) to retry.
-Up to 3 retry attempts are allowed; after that the message is left as
-unacknowledged and must be resent manually.
+Press \fBr\fR (with input blurred) to retry, up to 3 times.
+.PP
+After 3 retries with no acknowledgement the app triggers an automatic
+\fBflood fallback\fR: \fISendPathDiscoveryReq\fR is sent concurrently with a
+final send attempt, forcing the mesh firmware to discover a fresh route to
+the peer.
+This handles the common mobile-mesh scenario where either party has moved
+and the cached path is stale.
+No user action is required.
 .PP
 Channel messages are broadcast.
 They show \fB\(ck sent (broadcast)\fR once the device confirms receipt.

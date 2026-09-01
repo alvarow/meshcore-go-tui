@@ -285,6 +285,46 @@ func (s *Store) GetChannelLastRead(channelIdx int) (time.Time, error) {
 	return t, err
 }
 
+// ClearDirectMessages deletes all stored messages for a contact.
+func (s *Store) ClearDirectMessages(contactKey string) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		parent := tx.Bucket(bucketContacts)
+		return parent.DeleteBucket([]byte(contactKey))
+	})
+}
+
+// ClearChannelMessages deletes all stored messages for a channel.
+func (s *Store) ClearChannelMessages(channelIdx int) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		parent := tx.Bucket(bucketChannels)
+		return parent.DeleteBucket([]byte(fmt.Sprintf("%d", channelIdx)))
+	})
+}
+
+// DeleteDirectMessage removes a single direct message identified by its timestamp.
+func (s *Store) DeleteDirectMessage(contactKey string, ts time.Time) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		parent := tx.Bucket(bucketContacts)
+		sub := parent.Bucket([]byte(contactKey))
+		if sub == nil {
+			return nil
+		}
+		return sub.Delete(tsKey(ts))
+	})
+}
+
+// DeleteChannelMessage removes a single channel message identified by its timestamp.
+func (s *Store) DeleteChannelMessage(channelIdx int, ts time.Time) error {
+	return s.db.Update(func(tx *bolt.Tx) error {
+		parent := tx.Bucket(bucketChannels)
+		sub := parent.Bucket([]byte(fmt.Sprintf("%d", channelIdx)))
+		if sub == nil {
+			return nil
+		}
+		return sub.Delete(tsKey(ts))
+	})
+}
+
 // loadBefore walks a bucket backwards from just before `before`, returning up to limit messages oldest first.
 func loadBefore(b *bolt.Bucket, before time.Time, limit int) []StoredMessage {
 	var buf []StoredMessage

@@ -53,6 +53,10 @@ type ChatView struct {
 	input       textinput.Model
 	searchMode  bool
 	searchInput textinput.Model
+	selectMode  bool
+	selectedMsg int
+	offRecord   bool
+	clearPending bool
 	width       int
 	height      int
 }
@@ -118,6 +122,7 @@ func (v *ChatView) buildLines() []string {
 	recvStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0"))
 	ackStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED"))
 	errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444"))
+	selectHL := lipgloss.NewStyle().Background(lipgloss.Color("#312E81")).Foreground(lipgloss.Color("#E2E8F0"))
 
 	var lines []string
 	if v.selected < len(v.contacts) {
@@ -158,6 +163,9 @@ func (v *ChatView) buildLines() []string {
 					indicator = errStyle.Render(" ✗")
 				}
 				line = fmt.Sprintf("%s  %s%s", ts, sentStyle.Render("you: "+m.text), indicator)
+			}
+			if v.selectMode && i == v.selectedMsg {
+				line = selectHL.Width(v.vp.Width).Render("› " + strings.TrimLeft(line, " "))
 			}
 			lines = append(lines, line)
 		}
@@ -229,7 +237,7 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 				v.contacts[i].messages = append(v.contacts[i].messages, chatMessage{
 					from: name, text: m.Text, status: StatusReceived, timestamp: m.Timestamp,
 				})
-				if v.store != nil {
+				if v.store != nil && !v.offRecord {
 					key := hex.EncodeToString(v.contacts[i].contact.PublicKey[:])
 					_ = v.store.SaveDirectMessage(key, storage.StoredMessage{
 						Timestamp: m.Timestamp, From: name, Text: m.Text, Direction: storage.Inbound,
@@ -408,6 +416,71 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 
 		// Normal (non-search) key handling.
 		switch m.String() {
+		case "ctrl+o":
+			v.offRecord = !v.offRecord
+			if v.offRecord {
+				v.input.Placeholder = "⊘ off the record"
+			} else {
+				v.input.Placeholder = "Type a message..."
+			}
+			return v, nil
+
+		case "s":
+			if v.selectMode {
+				v.selectMode = false
+			} else if v.selected < len(v.contacts) && len(v.contacts[v.selected].messages) > 0 {
+				v.selectMode = true
+				v.selectedMsg = len(v.contacts[v.selected].messages) - 1
+			}
+			v.clearPending = false
+			v.rebuildViewport()
+			return v, nil
+
+		case "d":
+			if v.selectMode && v.selected < len(v.contacts) {
+				msgs := v.contacts[v.selected].messages
+				if v.selectedMsg < len(msgs) {
+					ts := msgs[v.selectedMsg].timestamp
+					v.contacts[v.selected].messages = append(msgs[:v.selectedMsg], msgs[v.selectedMsg+1:]...)
+					if v.selectedMsg >= len(v.contacts[v.selected].messages) && v.selectedMsg > 0 {
+						v.selectedMsg--
+					}
+					if v.store != nil {
+						key := hex.EncodeToString(v.contacts[v.selected].contact.PublicKey[:])
+						_ = v.store.DeleteDirectMessage(key, ts)
+					}
+					v.rebuildViewport()
+				}
+				return v, nil
+			}
+
+		case "X":
+			if v.selected < len(v.contacts) {
+				if v.clearPending {
+					v.clearPending = false
+					v.contacts[v.selected].messages = nil
+					if v.store != nil {
+						key := hex.EncodeToString(v.contacts[v.selected].contact.PublicKey[:])
+						_ = v.store.ClearDirectMessages(key)
+					}
+					v.rebuildViewport()
+				} else {
+					v.clearPending = true
+					v.contacts[v.selected].messages = append(v.contacts[v.selected].messages,
+						chatMessage{text: "press X again to clear all messages", isSystem: true, timestamp: time.Now()})
+					v.rebuildViewport()
+				}
+				return v, nil
+			}
+
+		case "esc":
+			if v.selectMode {
+				v.selectMode = false
+				v.clearPending = false
+				v.rebuildViewport()
+				return v, nil
+			}
+
 		case "ctrl+a":
 			if v.client != nil {
 				return v, sendAdvert(v.client)
@@ -428,7 +501,7 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			v.contacts[v.selected].messages = append(v.contacts[v.selected].messages, chatMessage{
 				from: "me", text: text, status: StatusSending, timestamp: now,
 			})
-			if v.store != nil {
+			if v.store != nil && !v.offRecord {
 				key := hex.EncodeToString(contact.PublicKey[:])
 				_ = v.store.SaveDirectMessage(key, storage.StoredMessage{
 					Timestamp: now, From: "me", Text: text, Direction: storage.Outbound,
@@ -438,14 +511,24 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			v.rebuildViewport()
 			return v, sendDirectMsg(v.client, contact, text)
 		case "up":
-			if v.selected > 0 {
+			if v.selectMode {
+				if v.selectedMsg > 0 {
+					v.selectedMsg--
+					v.rebuildViewport()
+				}
+			} else if v.selected > 0 {
 				v.saveLastRead(v.selected)
 				v.selected--
 				v.rebuildViewport()
 			}
 			return v, nil
 		case "down":
-			if v.selected < len(v.contacts)-1 {
+			if v.selectMode {
+				if v.selected < len(v.contacts) && v.selectedMsg < len(v.contacts[v.selected].messages)-1 {
+					v.selectedMsg++
+					v.rebuildViewport()
+				}
+			} else if v.selected < len(v.contacts)-1 {
 				v.saveLastRead(v.selected)
 				v.selected++
 				v.rebuildViewport()
@@ -567,11 +650,23 @@ func (v *ChatView) View() string {
 		Render(vpContent)
 
 	top := lipgloss.JoinHorizontal(lipgloss.Top, contactList, " ", msgThread)
+
+	inputBorderColor := lipgloss.Color("#7C3AED")
+	if v.offRecord {
+		inputBorderColor = lipgloss.Color("#DC2626")
+	} else if v.selectMode {
+		inputBorderColor = lipgloss.Color("#0EA5E9")
+	}
+	inputContent := v.input.View()
+	if v.selectMode {
+		inputContent = lipgloss.NewStyle().Foreground(lipgloss.Color("#0EA5E9")).
+			Render("select mode  ↑↓ navigate  d delete  s exit")
+	}
 	inputBox := lipgloss.NewStyle().
 		Width(v.width - 2).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7C3AED")).
-		Render(v.input.View())
+		BorderForeground(inputBorderColor).
+		Render(inputContent)
 
 	return lipgloss.JoinVertical(lipgloss.Left, top, inputBox)
 }

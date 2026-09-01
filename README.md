@@ -193,12 +193,14 @@ yellow = <1 hr, red = older or never seen. Delivery-confirmed messages show
 |-----|--------|
 | `↑` / `↓` | Move between contacts |
 | `/` | Open contact search filter |
-| `Escape` | Clear search / cancel |
+| `Escape` | Clear search / exit select mode / cancel |
 | `PgUp` / `PgDn` | Scroll message history |
 | `Ctrl+U` / `Ctrl+D` | Half-page scroll |
-| Type | Compose message (input box at bottom) |
-| `Enter` | Send message |
+| Type + `Enter` | Compose and send a direct message |
 | `Ctrl+A` | Broadcast self-advertisement to mesh |
+| `s` | Enter select mode (blue border); `↑`/`↓` moves cursor, `d` deletes message, `s`/`Esc` exits |
+| `X` | Clear all messages — press twice to confirm (local only) |
+| `Ctrl+O` | Toggle off-the-record: messages shown in-session but not saved; border turns red |
 
 ### Channels tab
 
@@ -211,12 +213,14 @@ use it, making the channel interoperable with other MeshCore clients.
 | `↑` / `↓` | Move between channels |
 | `PgUp` / `PgDn` | Scroll message history |
 | `Ctrl+U` / `Ctrl+D` | Half-page scroll |
-| Type | Compose message |
-| `Enter` | Send message |
+| Type + `Enter` | Compose and send a channel message |
 | `Ctrl+A` | Broadcast self-advertisement to mesh |
 | `n` | Join / create a channel (two-step: name → optional PSK) |
 | `d` `d` | Leave the selected channel (press twice to confirm) |
-| `Escape` | Cancel join mode |
+| `Escape` | Cancel join mode or exit select mode |
+| `s` | Enter select mode (blue border); `↑`/`↓` moves cursor, `d` deletes message, `s`/`Esc` exits |
+| `X` | Clear all messages — press twice to confirm (local only) |
+| `Ctrl+O` | Toggle off-the-record: messages shown in-session but not saved; border turns red |
 
 ### Nodes tab
 

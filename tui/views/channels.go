@@ -51,6 +51,10 @@ type ChannelView struct {
 	mode                chanMode
 	joinName            string
 	leaveConfirmPending bool
+	selectMode          bool
+	selectedMsg         int
+	offRecord           bool
+	clearPending        bool
 	width               int
 	height              int
 }
@@ -85,6 +89,7 @@ func (v *ChannelView) buildLines() []string {
 	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#475569"))
 	sentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED"))
 	recvStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0"))
+	selectHL := lipgloss.NewStyle().Background(lipgloss.Color("#312E81")).Foreground(lipgloss.Color("#E2E8F0"))
 
 	var lines []string
 	if v.selected < len(v.channels) {
@@ -115,6 +120,9 @@ func (v *ChannelView) buildLines() []string {
 				line = fmt.Sprintf("%s  %s", ts, sentStyle.Render("you: "+m.text))
 			} else {
 				line = fmt.Sprintf("%s  %s: %s", ts, m.from, recvStyle.Render(m.text))
+			}
+			if v.selectMode && i == v.selectedMsg {
+				line = selectHL.Width(v.vp.Width).Render("› " + strings.TrimLeft(line, " "))
 			}
 			lines = append(lines, line)
 		}
@@ -175,7 +183,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				text:      m.Text,
 				timestamp: m.Timestamp,
 			})
-			if v.store != nil {
+			if v.store != nil && !v.offRecord {
 				_ = v.store.SaveChannelMessage(m.ChannelIdx, storage.StoredMessage{
 					Timestamp: m.Timestamp, From: "peer", Text: m.Text, Direction: storage.Inbound,
 				})
@@ -251,6 +259,12 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 	case tea.KeyMsg:
 		switch m.String() {
 		case "esc":
+			if v.selectMode {
+				v.selectMode = false
+				v.clearPending = false
+				v.rebuildViewport()
+				return v, nil
+			}
 			if v.mode != modeChanChat {
 				v.mode = modeChanChat
 				v.joinName = ""
@@ -259,6 +273,44 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 			}
 			v.leaveConfirmPending = false
 			return v, nil
+
+		case "ctrl+o":
+			v.offRecord = !v.offRecord
+			if v.offRecord {
+				v.input.Placeholder = "⊘ off the record"
+			} else {
+				v.input.Placeholder = "Type a message..."
+			}
+			return v, nil
+
+		case "s":
+			if v.selectMode {
+				v.selectMode = false
+			} else if v.selected < len(v.channels) && len(v.channels[v.selected].messages) > 0 {
+				v.selectMode = true
+				v.selectedMsg = len(v.channels[v.selected].messages) - 1
+			}
+			v.clearPending = false
+			v.rebuildViewport()
+			return v, nil
+
+		case "X":
+			if v.selected < len(v.channels) {
+				if v.clearPending {
+					v.clearPending = false
+					idx := int(v.channels[v.selected].info.ChannelIdx)
+					v.channels[v.selected].messages = nil
+					if v.store != nil {
+						_ = v.store.ClearChannelMessages(idx)
+					}
+					v.rebuildViewport()
+				} else {
+					v.clearPending = true
+					v.appendSystem("press X again to clear all messages")
+					v.rebuildViewport()
+				}
+				return v, nil
+			}
 
 		case "ctrl+a":
 			if v.client != nil {
@@ -276,6 +328,22 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 			}
 
 		case "d":
+			if v.selectMode && v.selected < len(v.channels) {
+				msgs := v.channels[v.selected].messages
+				if v.selectedMsg < len(msgs) {
+					ts := msgs[v.selectedMsg].timestamp
+					v.channels[v.selected].messages = append(msgs[:v.selectedMsg], msgs[v.selectedMsg+1:]...)
+					if v.selectedMsg >= len(v.channels[v.selected].messages) && v.selectedMsg > 0 {
+						v.selectedMsg--
+					}
+					if v.store != nil {
+						idx := int(v.channels[v.selected].info.ChannelIdx)
+						_ = v.store.DeleteChannelMessage(idx, ts)
+					}
+					v.rebuildViewport()
+				}
+				return v, nil
+			}
 			if v.mode == modeChanChat && v.client != nil && len(v.channels) > 0 {
 				if v.leaveConfirmPending {
 					v.leaveConfirmPending = false
@@ -325,7 +393,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				v.channels[v.selected].messages = append(v.channels[v.selected].messages, channelMessage{
 					from: "me", text: text, sent: true, timestamp: now,
 				})
-				if v.store != nil {
+				if v.store != nil && !v.offRecord {
 					_ = v.store.SaveChannelMessage(int(idx), storage.StoredMessage{
 						Timestamp: now, From: "me", Text: text, Direction: storage.Outbound,
 					})
@@ -336,6 +404,13 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 			}
 
 		case "up":
+			if v.selectMode {
+				if v.selectedMsg > 0 {
+					v.selectedMsg--
+					v.rebuildViewport()
+				}
+				return v, nil
+			}
 			if v.mode == modeChanChat {
 				if v.selected > 0 {
 					v.saveChannelLastRead(v.selected)
@@ -345,6 +420,13 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				return v, nil
 			}
 		case "down":
+			if v.selectMode {
+				if v.selected < len(v.channels) && v.selectedMsg < len(v.channels[v.selected].messages)-1 {
+					v.selectedMsg++
+					v.rebuildViewport()
+				}
+				return v, nil
+			}
 			if v.mode == modeChanChat {
 				if v.selected < len(v.channels)-1 {
 					v.saveChannelLastRead(v.selected)
@@ -445,15 +527,25 @@ func (v *ChannelView) View() string {
 
 	top := lipgloss.JoinHorizontal(lipgloss.Top, chanList, " ", msgThread)
 
-	borderColor := "#7C3AED"
-	if v.mode != modeChanChat {
-		borderColor = "#EAB308" // yellow while in join mode
+	borderColor := lipgloss.Color("#7C3AED")
+	switch {
+	case v.offRecord:
+		borderColor = lipgloss.Color("#DC2626")
+	case v.selectMode:
+		borderColor = lipgloss.Color("#0EA5E9")
+	case v.mode != modeChanChat:
+		borderColor = lipgloss.Color("#EAB308")
+	}
+	inputContent := v.input.View()
+	if v.selectMode {
+		inputContent = lipgloss.NewStyle().Foreground(lipgloss.Color("#0EA5E9")).
+			Render("select mode  ↑↓ navigate  d delete  s exit")
 	}
 	inputBox := lipgloss.NewStyle().
 		Width(v.width - 2).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(borderColor)).
-		Render(v.input.View())
+		BorderForeground(borderColor).
+		Render(inputContent)
 
 	return lipgloss.JoinVertical(lipgloss.Left, top, inputBox)
 }

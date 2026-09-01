@@ -72,13 +72,13 @@ Cancel and exit.
 .SS "Chat tab"
 .TP
 .B \(ua \fR/\fB \(da
-Move between contacts.
+Move between contacts (or navigate messages in select mode).
 .TP
 .B /
 Open contact search filter.
 .TP
 .B Escape
-Clear search or cancel input.
+Clear search, exit select mode, or cancel input.
 .TP
 .B PgUp \fR/\fB Ctrl+U\fR, \fBPgDn \fR/\fB Ctrl+D
 Scroll message history.
@@ -89,10 +89,28 @@ Compose and send a direct message.
 .B Ctrl+A
 Broadcast a self-advertisement to the mesh.
 A system message \fI\(em advert sent \(em\fR appears inline on completion.
+.TP
+.B s
+Toggle select mode.
+The input box turns blue and shows navigation hints.
+Use \fB\(ua\fR/\fB\(da\fR to move the \fB\(rsaquo\fR cursor,
+\fBd\fR to delete the highlighted message from the screen and local storage,
+and \fBs\fR or \fBEscape\fR to exit.
+.TP
+.B X
+Clear all messages for the selected contact.
+The first press shows an inline confirmation; the second press executes.
+Affects local storage only.
+.TP
+.B Ctrl+O
+Toggle off-the-record mode.
+While active the input border turns red, new messages are displayed in-session
+but not written to local storage, and are lost when the app exits.
+Press \fBCtrl+O\fR again to resume normal persistence.
 .SS "Channels tab"
 .TP
 .B \(ua \fR/\fB \(da
-Move between channels.
+Move between channels (or navigate messages in select mode).
 .TP
 .B PgUp \fR/\fB Ctrl+U\fR, \fBPgDn \fR/\fB Ctrl+D
 Scroll message history.
@@ -111,13 +129,24 @@ secret from the channel name via SHA-256).
 Typing \fBPublic\fR as the name uses the well-known shared secret automatically.
 The input border turns yellow while in join mode.
 .TP
-.B d \fR(twice)
+.B d \fR(twice, outside select mode)
 Leave the selected channel.
 The first press shows an inline confirmation prompt; the second press executes.
 The slot is cleared on the device; local message history is preserved.
 .TP
 .B Escape
-Cancel join mode and return to normal input.
+Cancel join mode, exit select mode, or return to normal input.
+.TP
+.B s
+Toggle select mode (same behaviour as in the Chat tab).
+Note: \fBd\fR in select mode deletes a message; outside select mode it
+initiates the leave-channel confirmation.
+.TP
+.B X
+Clear all messages for the selected channel (local only, two-press confirm).
+.TP
+.B Ctrl+O
+Toggle off-the-record mode (same behaviour as in the Chat tab).
 .SH FILES
 .TP
 .I ~/.config/meshcore/config.toml

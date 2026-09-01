@@ -242,11 +242,17 @@ cached path to the recipient is stale — no user action required.
 | `PgUp` / `PgDn` | Scroll message history |
 | `Ctrl+U` / `Ctrl+D` | Half-page scroll |
 | Type + `Enter` | Compose and send a direct message |
+| `/ping` + `Enter` | Ping selected contact; RTT appears inline |
+| `/trace` + `Enter` | Trace path to selected contact; hop counts appear inline |
+| `/location <lat> <lon>` + `Enter` | Set your advertised GPS coordinates on the device (decimal degrees) |
 | `r` | Retry last unacknowledged message (input blurred; up to 3 attempts) |
 | `Ctrl+A` | Broadcast self-advertisement to mesh |
 | `s` | Enter select mode (blue border); `↑`/`↓` moves cursor, `d` deletes message, `s`/`Esc` exits |
 | `X` | Clear all messages — press twice to confirm (local only) |
 | `Ctrl+O` | Toggle off-the-record: messages shown in-session but not saved; border turns red |
+
+> **Tip:** typing `/` only opens contact search when the input is empty.
+> Typing `/ping`, `/trace`, or `/location` does **not** trigger search.
 
 ### Channels tab
 
@@ -273,10 +279,19 @@ receipt. Channels are broadcast; there is no per-message remote ack or retry.
 
 ### Nodes tab
 
+Discovered nodes are listed with Name, Type, SNR, RSSI, and Last Seen.
+The list is session-only and resets on reconnect.
+
+Selecting a node shows a **detail bar** beneath the list with:
+hops (mesh hops to reach it), loc (lat,lon if the node advertises GPS),
+last\_advert (firmware's own timestamp), and ping/trace results if measured.
+
 | Key | Action |
 |-----|--------|
 | `↑` / `k` | Move selection up |
 | `↓` / `j` | Move selection down |
+| `p` | Ping selected node — RTT appears in detail bar |
+| `t` | Trace path to selected node — hop counts appear in detail bar |
 
 ## Acknowledgements
 

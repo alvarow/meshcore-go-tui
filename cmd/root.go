@@ -199,27 +199,34 @@ To set a default in config (~/.config/meshcore/config.toml):
 		})
 
 		// Wire async push handlers.
+		// PushMsgWaiting must be handled in a separate goroutine: GetWaitingMessages
+		// sends SyncNextMessage and then blocks waiting for the device's response
+		// notifications. If we block the notification goroutine here, no further
+		// signals can be delivered and GetWaitingMessages deadlocks waiting for
+		// a response it can never receive.
 		c.OnPush(companion.PushMsgWaiting, func(_ companion.Response) {
-			msgs, err := c.GetWaitingMessages(ctx)
-			if err != nil {
-				return
-			}
-			for _, m := range msgs {
-				if m.Contact != nil {
-					p.Send(views.InboundDirectMsg{
-						PubKeyPrefix: m.Contact.PubKeyPrefix,
-						Text:         m.Contact.Text,
-						Timestamp:    time.Unix(int64(m.Contact.SenderTimestamp), 0),
-					})
+			go func() {
+				msgs, err := c.GetWaitingMessages(ctx)
+				if err != nil {
+					return
 				}
-				if m.Channel != nil {
-					p.Send(views.InboundChannelMsg{
-						ChannelIdx: int(m.Channel.ChannelIdx),
-						Text:       m.Channel.Text,
-						Timestamp:  time.Unix(int64(m.Channel.SenderTimestamp), 0),
-					})
+				for _, m := range msgs {
+					if m.Contact != nil {
+						p.Send(views.InboundDirectMsg{
+							PubKeyPrefix: m.Contact.PubKeyPrefix,
+							Text:         m.Contact.Text,
+							Timestamp:    time.Unix(int64(m.Contact.SenderTimestamp), 0),
+						})
+					}
+					if m.Channel != nil {
+						p.Send(views.InboundChannelMsg{
+							ChannelIdx: int(m.Channel.ChannelIdx),
+							Text:       m.Channel.Text,
+							Timestamp:  time.Unix(int64(m.Channel.SenderTimestamp), 0),
+						})
+					}
 				}
-			}
+			}()
 		})
 
 		c.OnPush(companion.PushSendConfirmed, func(resp companion.Response) {

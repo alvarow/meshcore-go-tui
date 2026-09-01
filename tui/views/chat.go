@@ -990,7 +990,10 @@ func pingContact(c *client.Client, contact companion.ContactResponse, msgTime ti
 	copy(p6[:], contact.PublicKey[:6])
 	ck := hex.EncodeToString(contact.PublicKey[:])
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		// Short timeout: firmware responds with RespSent (not RespOk as the SDK
+		// expects), so sendAndWait will time out — but the request is already
+		// in flight. 3s is enough to confirm it was sent.
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		_ = c.SendStatusReq(ctx, meshcore.NewIdentity(contact.PublicKey))
 		return pingResultMsg{contactKey: ck, prefix: p6, msgTime: msgTime}
@@ -1004,7 +1007,7 @@ func traceContact(c *client.Client, contact companion.ContactResponse, msgTime t
 	copy(p6[:], contact.PublicKey[:6])
 	ck := hex.EncodeToString(contact.PublicKey[:])
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		_, _ = c.SendPathDiscoveryReq(ctx, meshcore.NewIdentity(contact.PublicKey))
 		return traceResultMsg{contactKey: ck, prefix: p6, msgTime: msgTime}

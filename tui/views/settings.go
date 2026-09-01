@@ -308,12 +308,12 @@ func (v *SettingsView) Update(msg tea.Msg) (View, tea.Cmd) {
 			return v, nil
 		case "pgup", "ctrl+u":
 			if v.vpReady {
-				v.vp.HalfViewUp()
+				v.vp.HalfPageUp()
 			}
 			return v, nil
 		case "pgdn", "ctrl+d":
 			if v.vpReady {
-				v.vp.HalfViewDown()
+				v.vp.HalfPageDown()
 			}
 			return v, nil
 		}

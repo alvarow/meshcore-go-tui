@@ -74,7 +74,7 @@ func Open() (*Store, error) {
 		return err
 	})
 	if err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return &Store{db: db}, nil
@@ -100,7 +100,7 @@ func OpenAt(path string) (*Store, error) {
 		return err
 	})
 	if err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, err
 	}
 	return &Store{db: db}, nil

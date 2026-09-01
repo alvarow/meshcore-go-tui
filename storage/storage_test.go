@@ -11,7 +11,7 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	contactKey := "aabbccddeeff"
 	base := time.Unix(1_700_000_000, 0)
@@ -86,7 +86,7 @@ func TestLoadBefore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	base := time.Unix(1_700_000_000, 0)
 	contactKey := "deadbeef"
@@ -128,7 +128,7 @@ func TestLastRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	// Zero time before any set.
 	ts, err := store.GetLastRead("contact1")
@@ -186,7 +186,7 @@ func TestLoadLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 
 	base := time.Unix(1_700_000_000, 0)
 	for i := 0; i < 20; i++ {

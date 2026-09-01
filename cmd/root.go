@@ -243,9 +243,13 @@ To set a default in config (~/.config/meshcore/config.toml):
 			debugf("advert: %q pubkey=%x type=%d last_seen=%s",
 				advert.AdvertName, advert.PublicKey[:6], advert.Type, lastSeen)
 			p.Send(views.NodeAdvertMsg{
-				Name:     advert.AdvertName,
-				NodeType: advert.Type,
-				PubKey:   advert.PublicKey,
+				Name:       advert.AdvertName,
+				NodeType:   advert.Type,
+				PubKey:     advert.PublicKey,
+				OutHops:    advert.OutPathLen,
+				Lat:        advert.AdvertLatitude,
+				Lon:        advert.AdvertLongitude,
+				LastAdvert: advert.LastAdvert,
 			})
 		})
 

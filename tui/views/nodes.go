@@ -13,14 +13,18 @@ import (
 )
 
 type nodeEntry struct {
-	name      string
-	nodeType  byte
-	snr       float32
-	rssi      int8
-	pubKey    [32]byte
-	lastSeen  time.Time
-	pingRTT   string // last ping RTT, empty if never pinged
-	traceHops string // last trace result, empty if never traced
+	name       string
+	nodeType   byte
+	snr        float32
+	rssi       int8
+	pubKey     [32]byte
+	outHops    byte      // hops to reach this node
+	lat        int32     // × 1e7; 0 = not set
+	lon        int32     // × 1e7; 0 = not set
+	lastAdvert time.Time // node's own last advert time (from firmware)
+	lastSeen   time.Time // when we received the advert
+	pingRTT    string
+	traceHops  string
 }
 
 type NodesView struct {
@@ -50,23 +54,36 @@ func (v *NodesView) Update(msg tea.Msg) (View, tea.Cmd) {
 		return v, nil
 
 	case NodeAdvertMsg:
+		now := time.Now()
+		var lastAdvert time.Time
+		if m.LastAdvert > 0 {
+			lastAdvert = time.Unix(int64(m.LastAdvert), 0)
+		}
 		for i := range v.nodes {
 			if v.nodes[i].pubKey == m.PubKey {
 				v.nodes[i].name = m.Name
 				v.nodes[i].nodeType = m.NodeType
 				v.nodes[i].snr = m.SNR
 				v.nodes[i].rssi = m.RSSI
-				v.nodes[i].lastSeen = time.Now()
+				v.nodes[i].outHops = m.OutHops
+				v.nodes[i].lat = m.Lat
+				v.nodes[i].lon = m.Lon
+				v.nodes[i].lastAdvert = lastAdvert
+				v.nodes[i].lastSeen = now
 				return v, nil
 			}
 		}
 		v.nodes = append(v.nodes, nodeEntry{
-			name:     m.Name,
-			nodeType: m.NodeType,
-			snr:      m.SNR,
-			rssi:     m.RSSI,
-			pubKey:   m.PubKey,
-			lastSeen: time.Now(),
+			name:       m.Name,
+			nodeType:   m.NodeType,
+			snr:        m.SNR,
+			rssi:       m.RSSI,
+			pubKey:     m.PubKey,
+			outHops:    m.OutHops,
+			lat:        m.Lat,
+			lon:        m.Lon,
+			lastAdvert: lastAdvert,
+			lastSeen:   now,
 		})
 		return v, nil
 
@@ -151,15 +168,8 @@ func (v *NodesView) View() string {
 			lastSeen = ago.String() + " ago"
 		}
 		typeName := nodeTypeName(n.nodeType)
-		extra := ""
-		if n.pingRTT != "" {
-			extra += "  ping:" + n.pingRTT
-		}
-		if n.traceHops != "" {
-			extra += "  hops:" + n.traceHops
-		}
-		row := fmt.Sprintf("  %-20s %-6s %5.1fdB %5ddBm  %-15s%s",
-			truncate(n.name, 20), typeName, n.snr, n.rssi, lastSeen, extra)
+		row := fmt.Sprintf("  %-20s %-6s %5.1fdB %5ddBm  %s",
+			truncate(n.name, 20), typeName, n.snr, n.rssi, lastSeen)
 		if i == v.selected {
 			row = lipgloss.NewStyle().
 				Background(lipgloss.Color("#1E293B")).
@@ -171,9 +181,32 @@ func (v *NodesView) View() string {
 		rows = append(rows, row)
 	}
 
+	// Detail bar for selected node.
+	if v.selected < len(v.nodes) {
+		n := v.nodes[v.selected]
+		var details []string
+		details = append(details, fmt.Sprintf("hops:%d", n.outHops))
+		if n.lat != 0 || n.lon != 0 {
+			details = append(details, fmt.Sprintf("loc:%.6f,%.6f",
+				float64(n.lat)/1e7, float64(n.lon)/1e7))
+		}
+		if !n.lastAdvert.IsZero() {
+			details = append(details, "last_advert:"+n.lastAdvert.Format("2006-01-02 15:04:05"))
+		}
+		if n.pingRTT != "" {
+			details = append(details, "ping:"+n.pingRTT)
+		}
+		if n.traceHops != "" {
+			details = append(details, "trace:"+n.traceHops)
+		}
+		detail := lipgloss.NewStyle().Foreground(lipgloss.Color("#A78BFA")).
+			Render("  " + strings.Join(details, "  "))
+		rows = append(rows, divider, detail)
+	}
+
 	hint := lipgloss.NewStyle().Foreground(lipgloss.Color("#475569")).
 		Render("  p=ping  t=trace  ↑↓/jk=navigate")
-	rows = append(rows, "", hint)
+	rows = append(rows, hint)
 
 	return lipgloss.NewStyle().
 		Width(v.width - 2).Height(v.height - 4).

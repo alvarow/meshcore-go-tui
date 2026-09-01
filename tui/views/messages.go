@@ -29,11 +29,15 @@ type OutboundAckMsg struct {
 
 // NodeAdvertMsg is sent when a new peer advertisement is received.
 type NodeAdvertMsg struct {
-	Name     string
-	NodeType byte
-	SNR      float32
-	RSSI     int8
-	PubKey   [32]byte
+	Name       string
+	NodeType   byte
+	SNR        float32
+	RSSI       int8
+	PubKey     [32]byte
+	OutHops    byte    // hops to reach this node (0 = direct)
+	Lat        int32   // advertised latitude  × 1e7 (0 = not set)
+	Lon        int32   // advertised longitude × 1e7 (0 = not set)
+	LastAdvert uint32  // Unix timestamp of node's own last advert (0 = unknown)
 }
 
 // InboundChannelMsg is sent when a group channel message arrives.

@@ -27,16 +27,19 @@ const (
 )
 
 type chatMessage struct {
-	from      string
-	text      string
-	status    MsgStatus
-	timestamp time.Time
+	from        string
+	text        string
+	status      MsgStatus
+	timestamp   time.Time
+	roundTripMs uint32
+	isSystem    bool
 }
 
 type contactItem struct {
 	contact  companion.ContactResponse
 	messages []chatMessage
 	lastRead time.Time
+	lastSeen time.Time
 }
 
 type ChatView struct {
@@ -135,6 +138,10 @@ func (v *ChatView) buildLines() []string {
 			if i == unreadFrom {
 				lines = append(lines, chatUnreadSeparator(len(msgs)-unreadFrom, v.vp.Width))
 			}
+			if m.isSystem {
+				lines = append(lines, dimStyle.Render("  — "+m.text+" —"))
+				continue
+			}
 			ts := dimStyle.Render(m.timestamp.Format("15:04"))
 			var line string
 			if m.status == StatusReceived {
@@ -145,7 +152,8 @@ func (v *ChatView) buildLines() []string {
 				case StatusSending:
 					indicator = dimStyle.Render(" …")
 				case StatusAcked:
-					indicator = ackStyle.Render(" ✓")
+					rtt := formatRTT(m.roundTripMs)
+					indicator = ackStyle.Render(" ✓" + rtt)
 				case StatusFailed:
 					indicator = errStyle.Render(" ✗")
 				}
@@ -246,6 +254,7 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			for i := len(msgs) - 1; i >= 0; i-- {
 				if msgs[i].status == StatusSending {
 					v.contacts[v.selected].messages[i].status = StatusAcked
+					v.contacts[v.selected].messages[i].roundTripMs = m.RoundTripMs
 					if v.store != nil {
 						key := hex.EncodeToString(v.contacts[v.selected].contact.PublicKey[:])
 						_ = v.store.MarkAcked(key, msgs[i].timestamp)
@@ -254,6 +263,16 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 				}
 			}
 			v.rebuildViewport()
+		}
+		return v, nil
+
+	case NodeAdvertMsg:
+		for i := range v.contacts {
+			if v.contacts[i].contact.PublicKey == m.PubKey {
+				v.contacts[i].lastSeen = time.Now()
+				v.rebuildViewport()
+				break
+			}
 		}
 		return v, nil
 
@@ -298,6 +317,18 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 				}
 				break
 			}
+		}
+		return v, nil
+
+	case AdvertResultMsg:
+		sys := "advert sent"
+		if m.Err != nil {
+			sys = "advert failed: " + m.Err.Error()
+		}
+		if v.selected < len(v.contacts) {
+			v.contacts[v.selected].messages = append(v.contacts[v.selected].messages,
+				chatMessage{text: sys, isSystem: true, timestamp: time.Now()})
+			v.rebuildViewport()
 		}
 		return v, nil
 
@@ -377,6 +408,11 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 
 		// Normal (non-search) key handling.
 		switch m.String() {
+		case "ctrl+a":
+			if v.client != nil {
+				return v, sendAdvert(v.client)
+			}
+			return v, nil
 		case "/":
 			v.searchMode = true
 			v.input.Blur()
@@ -496,14 +532,16 @@ func (v *ChatView) View() string {
 			if name == "" {
 				name = hex.EncodeToString(c.contact.PublicKey[:3])
 			}
-			if len(name) > listWidth-3 {
-				name = name[:listWidth-3]
+			if len(name) > listWidth-4 {
+				name = name[:listWidth-4]
 			}
-			line := fmt.Sprintf(" %s", name)
+			dot := freshnessStyle(c.lastSeen).Render("●")
 			if i == v.selected {
-				line = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7C3AED")).Render("> " + name)
+				line := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#7C3AED")).Render("> " + name)
+				listLines = append(listLines, dot+" "+line)
+			} else {
+				listLines = append(listLines, dot+" "+name)
 			}
-			listLines = append(listLines, line)
 		}
 	}
 
@@ -566,6 +604,46 @@ func sendDirectMsg(c *client.Client, contact companion.ContactResponse, text str
 }
 
 type sendErrMsg struct{ err error }
+
+// AdvertResultMsg is returned by sendAdvert and handled by the view that sent it.
+type AdvertResultMsg struct{ Err error }
+
+// sendAdvert broadcasts a self-advertisement and returns an AdvertResultMsg.
+func sendAdvert(c *client.Client) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return AdvertResultMsg{Err: c.SendSelfAdvert(ctx, 0)}
+	}
+}
+
+// freshnessStyle returns a lipgloss style whose colour reflects how recently a
+// contact was last seen: green <5 min, yellow <1 hr, dim red otherwise.
+func freshnessStyle(lastSeen time.Time) lipgloss.Style {
+	if lastSeen.IsZero() {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#475569"))
+	}
+	ago := time.Since(lastSeen)
+	switch {
+	case ago < 5*time.Minute:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#22C55E"))
+	case ago < time.Hour:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#EAB308"))
+	default:
+		return lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444"))
+	}
+}
+
+// formatRTT formats a round-trip time for display next to the ack checkmark.
+func formatRTT(ms uint32) string {
+	if ms == 0 {
+		return ""
+	}
+	if ms < 1000 {
+		return fmt.Sprintf(" %dms", ms)
+	}
+	return fmt.Sprintf(" %.1fs", float64(ms)/1000)
+}
 
 type olderDirectMsgsMsg struct {
 	contactKey string

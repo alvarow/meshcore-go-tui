@@ -15,7 +15,11 @@ Runs on Linux today; macOS and Windows support is a planned next step.
 - Serial and TCP transports
 - Full session lifecycle: device query, contact sync, channel sync on connect
 - Live push events: inbound messages, delivery ACKs, peer discovery, contact changes
-- Scrollable message threads with timestamps and delivery status (… / ✓ / ✗)
+- Scrollable message threads with timestamps and delivery status (… / ✓ 42ms / ✗)
+- Contact freshness dots: green/yellow/red based on time since last advert
+- Join and leave channels with optional PSK; well-known "Public" channel secret built in
+- Send Advert (`Ctrl+A`) to re-announce yourself to the mesh
+- Desktop notifications via `notify-send` for messages received on background tabs
 - Unread message badges per tab
 - Reconnect spinner in status bar on BLE disconnect
 - Auto-dismiss error bar (5 seconds)
@@ -141,6 +145,18 @@ device    = "/dev/ttyUSB0"
 EOF
 ```
 
+## Desktop notifications
+
+When a direct or channel message arrives while you are on a different tab,
+`notify-send` is invoked with the message text. If `notify-send` is not
+installed the feature is silently disabled.
+
+Install on Debian/Ubuntu:
+
+```bash
+sudo apt install libnotify-bin
+```
+
 ## Message storage
 
 All messages are persisted automatically to `~/.local/share/meshcore/messages.db`
@@ -172,15 +188,26 @@ contact and channel on every connection.
 
 ### Chat tab
 
+Contact names are prefixed with a freshness dot: `●` green = seen <5 min,
+yellow = <1 hr, red = older or never seen. Delivery-confirmed messages show
+`✓ 42ms` with the round-trip time.
+
 | Key | Action |
 |-----|--------|
 | `↑` / `↓` | Move between contacts |
+| `/` | Open contact search filter |
+| `Escape` | Clear search / cancel |
 | `PgUp` / `PgDn` | Scroll message history |
 | `Ctrl+U` / `Ctrl+D` | Half-page scroll |
 | Type | Compose message (input box at bottom) |
 | `Enter` | Send message |
+| `Ctrl+A` | Broadcast self-advertisement to mesh |
 
 ### Channels tab
+
+Channels can be joined or left at any time. The well-known "Public" channel
+secret is built in — typing `Public` as the channel name will automatically
+use it, making the channel interoperable with other MeshCore clients.
 
 | Key | Action |
 |-----|--------|
@@ -189,6 +216,10 @@ contact and channel on every connection.
 | `Ctrl+U` / `Ctrl+D` | Half-page scroll |
 | Type | Compose message |
 | `Enter` | Send message |
+| `Ctrl+A` | Broadcast self-advertisement to mesh |
+| `n` | Join / create a channel (two-step: name → optional PSK) |
+| `d` `d` | Leave the selected channel (press twice to confirm) |
+| `Escape` | Cancel join mode |
 
 ### Nodes tab
 

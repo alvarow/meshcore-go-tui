@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -144,11 +145,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case views.InboundDirectMsg:
 		if a.activeTab != 0 {
 			a.unread[0]++
+			go desktopNotify("Direct message", m.Text)
 		}
 
 	case views.InboundChannelMsg:
 		if a.activeTab != 1 {
 			a.unread[1]++
+			go desktopNotify("Channel message", m.Text)
 		}
 	}
 
@@ -243,4 +246,10 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// desktopNotify fires a desktop notification via notify-send if available.
+// Errors and absence of notify-send are silently ignored.
+func desktopNotify(title, body string) {
+	_ = exec.Command("notify-send", "-i", "network-wireless", title, body).Run()
 }

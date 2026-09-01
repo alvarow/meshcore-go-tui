@@ -15,6 +15,15 @@ five-tab interface.
 .PP
 If no \fB\-\-device\fR is given and the transport is BLE, an interactive
 scan picker launches so you can choose your node.
+.PP
+Contact names in the Chat tab are prefixed with a colour-coded freshness dot
+(\fB\(bu\fR): green = seen within 5 minutes, yellow = within 1 hour, red =
+older or never seen.
+Delivery-confirmed outbound messages display the mesh round-trip time
+alongside the check mark (e.g.\& \fB\(ck 42ms\fR).
+.PP
+New messages that arrive while a different tab is active trigger a desktop
+notification via \fBnotify-send\fR(1) if it is installed.
 .SH OPTIONS
 .TP
 .BR \-\-transport " " \fItype\fR
@@ -72,6 +81,10 @@ Scroll message history.
 .TP
 .BI "Type text" ", then " Enter
 Compose and send a direct message.
+.TP
+.B Ctrl+A
+Broadcast a self-advertisement to the mesh.
+A system message \fI\(em advert sent \(em\fR appears inline on completion.
 .SS "Channels tab"
 .TP
 .B \(ua \fR/\fB \(da
@@ -82,6 +95,25 @@ Scroll message history.
 .TP
 .BI "Type text" ", then " Enter
 Compose and send a channel message.
+.TP
+.B Ctrl+A
+Broadcast a self-advertisement to the mesh.
+.TP
+.B n
+Enter join mode.
+Type a channel name and press Enter.
+Optionally enter a PSK and press Enter again (leave blank to auto-derive the
+secret from the channel name via SHA-256).
+Typing \fBPublic\fR as the name uses the well-known shared secret automatically.
+The input border turns yellow while in join mode.
+.TP
+.B d \fR(twice)
+Leave the selected channel.
+The first press shows an inline confirmation prompt; the second press executes.
+The slot is cleared on the device; local message history is preserved.
+.TP
+.B Escape
+Cancel join mode and return to normal input.
 .SH FILES
 .TP
 .I ~/.config/meshcore/config.toml
@@ -144,8 +176,9 @@ Capture a debug log:
 .B meshcore\-tui \-\-debug 2>/tmp/mc.log
 .RE
 .SH "DELIVERY CONFIRMATION"
-Outbound direct messages show a check indicator once the remote node
-confirms receipt via the MeshCore \fIPushSendConfirmed\fR event.
+Outbound direct messages show \fB\(ck\fR followed by the mesh round-trip time
+(e.g.\& \fB\(ck 42ms\fR) once the remote node confirms receipt via the
+MeshCore \fIPushSendConfirmed\fR event.
 Channel messages are broadcast; no per-message delivery confirmation is shown.
 There is no automatic retry \(em if a message is not delivered it must be
 resent manually.

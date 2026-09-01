@@ -2,6 +2,8 @@ package views
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -15,11 +17,20 @@ import (
 	"github.com/meshcore-go/meshcore-go/companion/client"
 )
 
+type chanMode int
+
+const (
+	modeChanChat chanMode = iota
+	modeChanJoinName
+	modeChanJoinPSK
+)
+
 type channelMessage struct {
 	from      string
 	text      string
 	sent      bool
 	timestamp time.Time
+	isSystem  bool
 }
 
 type channelItem struct {
@@ -29,16 +40,19 @@ type channelItem struct {
 }
 
 type ChannelView struct {
-	client      *client.Client
-	store       *storage.Store
-	channels    []channelItem
-	selected    int
-	vp          viewport.Model
-	vpReady     bool
-	loadingMore bool
-	input       textinput.Model
-	width       int
-	height      int
+	client              *client.Client
+	store               *storage.Store
+	channels            []channelItem
+	selected            int
+	vp                  viewport.Model
+	vpReady             bool
+	loadingMore         bool
+	input               textinput.Model
+	mode                chanMode
+	joinName            string
+	leaveConfirmPending bool
+	width               int
+	height              int
 }
 
 func NewChannelView(c *client.Client, store *storage.Store) *ChannelView {
@@ -90,6 +104,10 @@ func (v *ChannelView) buildLines() []string {
 		for i, m := range msgs {
 			if i == unreadFrom {
 				lines = append(lines, chanUnreadSeparator(len(msgs)-unreadFrom, v.vp.Width))
+			}
+			if m.isSystem {
+				lines = append(lines, dimStyle.Render("  — "+m.text+" —"))
+				continue
 			}
 			ts := dimStyle.Render(m.timestamp.Format("15:04"))
 			var line string
@@ -194,40 +212,147 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 		}
 		return v, nil
 
+	case AdvertResultMsg:
+		sys := "advert sent"
+		if m.Err != nil {
+			sys = "advert failed: " + m.Err.Error()
+		}
+		v.appendSystem(sys)
+		return v, nil
+
+	case channelJoinedMsg:
+		v.channels = append(v.channels, channelItem{info: companion.ChannelInfoResponse{
+			ChannelIdx: m.idx, Name: m.name,
+		}})
+		v.selected = len(v.channels) - 1
+		v.appendSystem("joined #" + m.name)
+		v.rebuildViewport()
+		return v, nil
+
+	case channelLeftMsg:
+		if m.err != nil {
+			v.appendSystem("leave failed: " + m.err.Error())
+		} else {
+			name := m.name
+			for i, ch := range v.channels {
+				if ch.info.ChannelIdx == m.idx {
+					v.channels = append(v.channels[:i], v.channels[i+1:]...)
+					if v.selected >= len(v.channels) && v.selected > 0 {
+						v.selected--
+					}
+					break
+				}
+			}
+			v.appendSystem("left #" + name)
+		}
+		v.rebuildViewport()
+		return v, nil
+
 	case tea.KeyMsg:
 		switch m.String() {
-		case "enter":
-			text := strings.TrimSpace(v.input.Value())
-			if text == "" || v.client == nil || len(v.channels) == 0 {
+		case "esc":
+			if v.mode != modeChanChat {
+				v.mode = modeChanChat
+				v.joinName = ""
+				v.input.SetValue("")
+				v.input.Placeholder = "Type a message..."
+			}
+			v.leaveConfirmPending = false
+			return v, nil
+
+		case "ctrl+a":
+			if v.client != nil {
+				return v, sendAdvert(v.client)
+			}
+			return v, nil
+
+		case "n":
+			if v.mode == modeChanChat && !v.input.Focused() {
+				v.mode = modeChanJoinName
+				v.input.SetValue("")
+				v.input.Placeholder = "Channel name (Enter to continue):"
+				v.input.Focus()
 				return v, nil
 			}
-			idx := v.channels[v.selected].info.ChannelIdx
-			now := time.Now()
-			v.channels[v.selected].messages = append(v.channels[v.selected].messages, channelMessage{
-				from: "me", text: text, sent: true, timestamp: now,
-			})
-			if v.store != nil {
-				_ = v.store.SaveChannelMessage(int(idx), storage.StoredMessage{
-					Timestamp: now, From: "me", Text: text, Direction: storage.Outbound,
+
+		case "d":
+			if v.mode == modeChanChat && v.client != nil && len(v.channels) > 0 {
+				if v.leaveConfirmPending {
+					v.leaveConfirmPending = false
+					ch := v.channels[v.selected]
+					return v, leaveChannel(v.client, ch.info.ChannelIdx, ch.info.Name)
+				}
+				v.leaveConfirmPending = true
+				v.appendSystem("press d again to leave #" + v.channels[v.selected].info.Name)
+				v.rebuildViewport()
+				return v, nil
+			}
+			v.leaveConfirmPending = false
+
+		case "enter":
+			switch v.mode {
+			case modeChanJoinName:
+				name := strings.TrimSpace(v.input.Value())
+				if name == "" {
+					v.mode = modeChanChat
+					v.input.Placeholder = "Type a message..."
+					return v, nil
+				}
+				v.joinName = name
+				v.mode = modeChanJoinPSK
+				v.input.SetValue("")
+				v.input.Placeholder = "PSK (optional — blank = auto-derive):"
+				return v, nil
+
+			case modeChanJoinPSK:
+				psk := strings.TrimSpace(v.input.Value())
+				v.mode = modeChanChat
+				v.input.SetValue("")
+				v.input.Placeholder = "Type a message..."
+				if v.client != nil {
+					return v, joinChannel(v.client, v.channels, v.joinName, psk)
+				}
+				return v, nil
+
+			default:
+				text := strings.TrimSpace(v.input.Value())
+				v.leaveConfirmPending = false
+				if text == "" || v.client == nil || len(v.channels) == 0 {
+					return v, nil
+				}
+				idx := v.channels[v.selected].info.ChannelIdx
+				now := time.Now()
+				v.channels[v.selected].messages = append(v.channels[v.selected].messages, channelMessage{
+					from: "me", text: text, sent: true, timestamp: now,
 				})
+				if v.store != nil {
+					_ = v.store.SaveChannelMessage(int(idx), storage.StoredMessage{
+						Timestamp: now, From: "me", Text: text, Direction: storage.Outbound,
+					})
+				}
+				v.input.Reset()
+				v.rebuildViewport()
+				return v, sendChannelMsg(v.client, idx, text)
 			}
-			v.input.Reset()
-			v.rebuildViewport()
-			return v, sendChannelMsg(v.client, idx, text)
+
 		case "up":
-			if v.selected > 0 {
-				v.saveChannelLastRead(v.selected)
-				v.selected--
-				v.rebuildViewport()
+			if v.mode == modeChanChat {
+				if v.selected > 0 {
+					v.saveChannelLastRead(v.selected)
+					v.selected--
+					v.rebuildViewport()
+				}
+				return v, nil
 			}
-			return v, nil
 		case "down":
-			if v.selected < len(v.channels)-1 {
-				v.saveChannelLastRead(v.selected)
-				v.selected++
-				v.rebuildViewport()
+			if v.mode == modeChanChat {
+				if v.selected < len(v.channels)-1 {
+					v.saveChannelLastRead(v.selected)
+					v.selected++
+					v.rebuildViewport()
+				}
+				return v, nil
 			}
-			return v, nil
 		case "pgup", "ctrl+u":
 			v.vp, cmd = v.vp.Update(msg)
 			if v.vp.AtTop() && !v.loadingMore && v.store != nil &&
@@ -319,10 +444,15 @@ func (v *ChannelView) View() string {
 		Render(vpContent)
 
 	top := lipgloss.JoinHorizontal(lipgloss.Top, chanList, " ", msgThread)
+
+	borderColor := "#7C3AED"
+	if v.mode != modeChanChat {
+		borderColor = "#EAB308" // yellow while in join mode
+	}
 	inputBox := lipgloss.NewStyle().
 		Width(v.width - 2).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7C3AED")).
+		BorderForeground(lipgloss.Color(borderColor)).
 		Render(v.input.View())
 
 	return lipgloss.JoinVertical(lipgloss.Left, top, inputBox)
@@ -352,6 +482,86 @@ func (v *ChannelView) saveChannelLastRead(idx int) {
 	chIdx := int(v.channels[idx].info.ChannelIdx)
 	_ = v.store.SetChannelLastRead(chIdx, latest)
 	v.channels[idx].lastRead = latest
+}
+
+// appendSystem appends a system message to the currently selected channel.
+func (v *ChannelView) appendSystem(text string) {
+	if v.selected < len(v.channels) {
+		v.channels[v.selected].messages = append(v.channels[v.selected].messages,
+			channelMessage{text: text, isSystem: true, timestamp: time.Now()})
+	}
+}
+
+// publicChannelSecret is the well-known shared secret used by all MeshCore
+// clients for the "Public" channel. Must match tui-meshcore / meshtui.
+var publicChannelSecret = [16]byte{
+	0x8b, 0x33, 0x87, 0xe9, 0xc5, 0xcd, 0xea, 0x6a,
+	0xc9, 0xe5, 0xed, 0xba, 0xa1, 0x15, 0xcd, 0x72,
+}
+
+type channelJoinedMsg struct {
+	idx  byte
+	name string
+}
+
+type channelLeftMsg struct {
+	idx  byte
+	name string
+	err  error
+}
+
+func joinChannel(c *client.Client, existing []channelItem, name, psk string) tea.Cmd {
+	return func() tea.Msg {
+		// Find first free slot (0-7).
+		used := make(map[byte]bool)
+		for _, ch := range existing {
+			used[ch.info.ChannelIdx] = true
+		}
+		var idx byte = 255
+		for i := byte(0); i < 8; i++ {
+			if !used[i] {
+				idx = i
+				break
+			}
+		}
+		if idx == 255 {
+			return channelJoinedMsg{name: name} // all slots full — caller won't find it, but won't crash
+		}
+
+		var secret [16]byte
+		switch {
+		case strings.EqualFold(name, "Public"):
+			secret = publicChannelSecret
+		case psk != "":
+			b, err := hex.DecodeString(psk)
+			if err == nil && len(b) == 16 {
+				copy(secret[:], b)
+			} else {
+				// treat as raw passphrase: SHA-256 truncated to 16 bytes
+				h := sha256.Sum256([]byte(psk))
+				copy(secret[:], h[:16])
+			}
+		default:
+			h := sha256.Sum256([]byte(name))
+			copy(secret[:], h[:16])
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := c.SetChannel(ctx, idx, name, secret); err != nil {
+			return channelLeftMsg{err: err} // reuse left msg for error reporting
+		}
+		return channelJoinedMsg{idx: idx, name: name}
+	}
+}
+
+func leaveChannel(c *client.Client, idx byte, name string) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		err := c.SetChannel(ctx, idx, "", [16]byte{})
+		return channelLeftMsg{idx: idx, name: name, err: err}
+	}
 }
 
 func sendChannelMsg(c *client.Client, idx byte, text string) tea.Cmd {

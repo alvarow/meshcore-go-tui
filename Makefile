@@ -27,7 +27,7 @@ test:
 
 lint:
 	go vet ./...
-	@command -v ~/go/bin/govulncheck >/dev/null 2>&1 && ~/go/bin/govulncheck ./... || true
+	@command -v $$(go env GOPATH)/bin/govulncheck >/dev/null 2>&1 && $$(go env GOPATH)/bin/govulncheck ./... || true
 
 clean:
 	rm -f $(BINARY) $(BINARY)-*

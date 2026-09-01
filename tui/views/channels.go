@@ -31,8 +31,14 @@ type channelMessage struct {
 	from      string
 	text      string
 	sent      bool
+	confirmed bool // device accepted the send (RespOk received)
 	timestamp time.Time
 	isSystem  bool
+}
+
+type chanSentResultMsg struct {
+	channelIdx int
+	timestamp  time.Time
 }
 
 type channelItem struct {
@@ -121,7 +127,11 @@ func (v *ChannelView) buildLines() []string {
 			ts := dimStyle.Render(m.timestamp.Format("15:04"))
 			var line string
 			if m.sent {
-				line = fmt.Sprintf("%s  %s", ts, sentStyle.Render("you: "+m.text))
+				suffix := ""
+				if m.confirmed {
+					suffix = dimStyle.Render(" ✓ sent (broadcast)")
+				}
+				line = fmt.Sprintf("%s  %s%s", ts, sentStyle.Render("you: "+m.text), suffix)
 			} else {
 				line = fmt.Sprintf("%s  %s: %s", ts, m.from, recvStyle.Render(m.text))
 			}
@@ -239,6 +249,21 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 		v.selected = len(v.channels) - 1
 		v.appendSystem("joined #" + m.name)
 		v.rebuildViewport()
+		return v, nil
+
+	case chanSentResultMsg:
+		if m.channelIdx >= 0 && m.channelIdx < len(v.channels) {
+			msgs := v.channels[m.channelIdx].messages
+			for i := len(msgs) - 1; i >= 0; i-- {
+				if msgs[i].sent && msgs[i].timestamp.Equal(m.timestamp) {
+					v.channels[m.channelIdx].messages[i].confirmed = true
+					if m.channelIdx == v.selected {
+						v.rebuildViewport()
+					}
+					break
+				}
+			}
+		}
 		return v, nil
 
 	case channelLeftMsg:
@@ -413,7 +438,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				}
 				v.input.Reset()
 				v.rebuildViewport()
-				return v, sendChannelMsg(v.client, idx, text)
+				return v, sendChannelMsg(v.client, idx, text, now)
 			}
 
 		case m.String() == "up":
@@ -675,7 +700,7 @@ func leaveChannel(c *client.Client, idx byte, name string) tea.Cmd {
 	}
 }
 
-func sendChannelMsg(c *client.Client, idx byte, text string) tea.Cmd {
+func sendChannelMsg(c *client.Client, idx byte, text string, ts time.Time) tea.Cmd {
 	return func() tea.Msg {
 		// The device acknowledges with RespOk (not RespSent), so the SDK call
 		// blocks indefinitely without a timeout. 15 s is generous; in practice
@@ -686,6 +711,7 @@ func sendChannelMsg(c *client.Client, idx byte, text string) tea.Cmd {
 		if err != nil && ctx.Err() == nil {
 			return sendErrMsg{err: err}
 		}
-		return nil
+		// Device said OK (or we timed out assuming it was queued) — mark confirmed.
+		return chanSentResultMsg{channelIdx: int(idx), timestamp: ts}
 	}
 }

@@ -23,9 +23,11 @@ type MsgStatus int
 
 const (
 	StatusReceived MsgStatus = iota
-	StatusSending
-	StatusAcked
-	StatusFailed
+	StatusSending  // BLE write in progress
+	StatusSent     // device accepted (SentResponse received); waiting for remote ack
+	StatusAcked    // remote ack received (PushSendConfirmed)
+	StatusNoAck    // no remote ack within timeout
+	StatusFailed   // send error
 )
 
 type chatMessage struct {
@@ -34,7 +36,22 @@ type chatMessage struct {
 	status      MsgStatus
 	timestamp   time.Time
 	roundTripMs uint32
+	hasAckCode  bool // StatusSent: device had a path (false = blind flood)
+	attempt     int  // retry count, 0 = first send
 	isSystem    bool
+}
+
+// sentResultMsg is returned by sendDirectMsg when the BLE write completes.
+type sentResultMsg struct {
+	contactKey string
+	timestamp  time.Time
+	hasAckCode bool
+}
+
+// ackTimeoutMsg fires when a StatusSent message doesn't get a PushSendConfirmed.
+type ackTimeoutMsg struct {
+	contactKey string
+	timestamp  time.Time
 }
 
 type contactItem struct {
@@ -162,9 +179,21 @@ func (v *ChatView) buildLines() []string {
 				switch m.status {
 				case StatusSending:
 					indicator = dimStyle.Render(" …")
+				case StatusSent:
+					if m.hasAckCode {
+						indicator = dimStyle.Render(" ● sent")
+					} else {
+						indicator = dimStyle.Render(" ● sent (no path)")
+					}
 				case StatusAcked:
 					rtt := formatRTT(m.roundTripMs)
 					indicator = ackStyle.Render(" ✓" + rtt)
+				case StatusNoAck:
+					retry := ""
+					if m.attempt < 3 {
+						retry = "  r=retry"
+					}
+					indicator = errStyle.Render(" ? no ack" + retry)
 				case StatusFailed:
 					indicator = errStyle.Render(" ✗")
 				}
@@ -262,21 +291,78 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 		}
 		return v, nil
 
-	case OutboundAckMsg:
-		if v.selected < len(v.contacts) {
-			msgs := v.contacts[v.selected].messages
-			for i := len(msgs) - 1; i >= 0; i-- {
-				if msgs[i].status == StatusSending {
-					v.contacts[v.selected].messages[i].status = StatusAcked
-					v.contacts[v.selected].messages[i].roundTripMs = m.RoundTripMs
-					if v.store != nil {
-						key := hex.EncodeToString(v.contacts[v.selected].contact.PublicKey[:])
-						_ = v.store.MarkAcked(key, msgs[i].timestamp)
+	case sentResultMsg:
+		for i := range v.contacts {
+			if hex.EncodeToString(v.contacts[i].contact.PublicKey[:]) == m.contactKey {
+				msgs := v.contacts[i].messages
+				for j := len(msgs) - 1; j >= 0; j-- {
+					if msgs[j].status == StatusSending && msgs[j].timestamp.Equal(m.timestamp) {
+						v.contacts[i].messages[j].status = StatusSent
+						v.contacts[i].messages[j].hasAckCode = m.hasAckCode
+						if i == v.selected {
+							v.rebuildViewport()
+						}
+						break
 					}
-					break
+				}
+				break
+			}
+		}
+		// Start 30s ack timeout — if PushSendConfirmed doesn't arrive, show ? no ack.
+		return v, tea.Tick(30*time.Second, func(time.Time) tea.Msg {
+			return ackTimeoutMsg{contactKey: m.contactKey, timestamp: m.timestamp}
+		})
+
+	case ackTimeoutMsg:
+		for i := range v.contacts {
+			if hex.EncodeToString(v.contacts[i].contact.PublicKey[:]) == m.contactKey {
+				msgs := v.contacts[i].messages
+				for j := range msgs {
+					if msgs[j].status == StatusSent && msgs[j].timestamp.Equal(m.timestamp) {
+						v.contacts[i].messages[j].status = StatusNoAck
+						if i == v.selected {
+							v.rebuildViewport()
+						}
+						break
+					}
+				}
+				break
+			}
+		}
+		return v, nil
+
+	case OutboundAckMsg:
+		// Match the oldest StatusSent message (sends are serial, FIFO).
+		for i := range v.contacts {
+			msgs := v.contacts[i].messages
+			for j, msg := range msgs {
+				if msg.status == StatusSent {
+					v.contacts[i].messages[j].status = StatusAcked
+					v.contacts[i].messages[j].roundTripMs = m.RoundTripMs
+					if v.store != nil {
+						k := hex.EncodeToString(v.contacts[i].contact.PublicKey[:])
+						_ = v.store.MarkAcked(k, msg.timestamp)
+					}
+					if i == v.selected {
+						v.rebuildViewport()
+					}
+					return v, nil
 				}
 			}
-			v.rebuildViewport()
+		}
+		// Fallback: match oldest StatusSending (in case sentResultMsg hasn't arrived yet).
+		for i := range v.contacts {
+			msgs := v.contacts[i].messages
+			for j, msg := range msgs {
+				if msg.status == StatusSending {
+					v.contacts[i].messages[j].status = StatusAcked
+					v.contacts[i].messages[j].roundTripMs = m.RoundTripMs
+					if i == v.selected {
+						v.rebuildViewport()
+					}
+					return v, nil
+				}
+			}
 		}
 		return v, nil
 
@@ -291,15 +377,22 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 		return v, nil
 
 	case sendErrMsg:
-		if v.selected < len(v.contacts) {
-			msgs := v.contacts[v.selected].messages
-			for i := len(msgs) - 1; i >= 0; i-- {
-				if msgs[i].status == StatusSending {
-					v.contacts[v.selected].messages[i].status = StatusFailed
+		for i := range v.contacts {
+			if m.contactKey != "" && hex.EncodeToString(v.contacts[i].contact.PublicKey[:]) != m.contactKey {
+				continue
+			}
+			msgs := v.contacts[i].messages
+			for j := len(msgs) - 1; j >= 0; j-- {
+				if msgs[j].status == StatusSending &&
+					(m.timestamp.IsZero() || msgs[j].timestamp.Equal(m.timestamp)) {
+					v.contacts[i].messages[j].status = StatusFailed
+					if i == v.selected {
+						v.rebuildViewport()
+					}
 					break
 				}
 			}
-			v.rebuildViewport()
+			break
 		}
 		return v, nil
 
@@ -503,6 +596,26 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			v.input.Blur()
 			v.searchInput.Focus()
 			return v, nil
+		case m.String() == "r" && !v.input.Focused():
+			// Retry the last StatusNoAck message for the selected contact.
+			if v.selected < len(v.contacts) {
+				msgs := v.contacts[v.selected].messages
+				for i := len(msgs) - 1; i >= 0; i-- {
+					if msgs[i].status == StatusNoAck && msgs[i].attempt < 3 {
+						attempt := msgs[i].attempt + 1
+						text := msgs[i].text
+						contact := v.contacts[v.selected].contact
+						now := time.Now()
+						v.contacts[v.selected].messages[i].status = StatusSending
+						v.contacts[v.selected].messages[i].attempt = attempt
+						v.contacts[v.selected].messages[i].timestamp = now
+						v.rebuildViewport()
+						return v, sendDirectMsg(v.client, contact, text, now)
+					}
+				}
+			}
+			return v, nil
+
 		case key.Matches(m, v.km.Send):
 			text := expandShortcodes(strings.TrimSpace(v.input.Value()))
 			if text == "" || v.client == nil || len(v.contacts) == 0 {
@@ -521,7 +634,7 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			}
 			v.input.Reset()
 			v.rebuildViewport()
-			return v, sendDirectMsg(v.client, contact, text)
+			return v, sendDirectMsg(v.client, contact, text, now)
 		case m.String() == "up":
 			if v.selectMode {
 				if v.selectedMsg > 0 {
@@ -703,20 +816,26 @@ func (v *ChatView) saveLastRead(idx int) {
 	v.contacts[idx].lastRead = latest
 }
 
-func sendDirectMsg(c *client.Client, contact companion.ContactResponse, text string) tea.Cmd {
+func sendDirectMsg(c *client.Client, contact companion.ContactResponse, text string, ts time.Time) tea.Cmd {
+	contactKey := hex.EncodeToString(contact.PublicKey[:])
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		identity := meshcore.NewIdentity(contact.PublicKey)
-		_, err := c.SendTextMessage(ctx, identity, text, 0)
+		resp, err := c.SendTextMessage(ctx, identity, text, 0)
 		if err != nil && ctx.Err() == nil {
-			return sendErrMsg{err: err}
+			return sendErrMsg{err: err, timestamp: ts, contactKey: contactKey}
 		}
-		return nil
+		// On ctx timeout the device likely queued it anyway; treat as sent.
+		return sentResultMsg{contactKey: contactKey, timestamp: ts, hasAckCode: resp.HasAckCode}
 	}
 }
 
-type sendErrMsg struct{ err error }
+type sendErrMsg struct {
+	err        error
+	timestamp  time.Time
+	contactKey string
+}
 
 // AdvertResultMsg is returned by sendAdvert and handled by the view that sent it.
 type AdvertResultMsg struct{ Err error }

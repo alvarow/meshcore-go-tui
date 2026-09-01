@@ -216,17 +216,27 @@ bindings and their defaults in a read-only panel.
 ### Chat tab
 
 Contact names are prefixed with a freshness dot: `●` green = seen <5 min,
-yellow = <1 hr, red = older or never seen. Delivery-confirmed messages show
-`✓ 42ms` with the round-trip time.
+yellow = <1 hr, red = older or never seen.
+
+Outbound direct messages show a delivery status indicator after the text:
+
+| Indicator | Meaning |
+|-----------|---------|
+| `…` | BLE write in progress |
+| `● sent` | Device accepted; has a known path to recipient |
+| `● sent (no path)` | Device sent as blind flood; no cached route to recipient |
+| `✓ 42ms` | Remote node confirmed receipt; round-trip time shown |
+| `? no ack  r=retry` | No confirmation after 30 s; press `r` to retry (up to 3×) |
 
 | Key | Action |
 |-----|--------|
 | `↑` / `↓` | Move between contacts |
 | `/` | Open contact search filter |
-| `Escape` | Clear search / exit select mode / cancel |
+| `Escape` | Clear search / exit select mode / blur input |
 | `PgUp` / `PgDn` | Scroll message history |
 | `Ctrl+U` / `Ctrl+D` | Half-page scroll |
 | Type + `Enter` | Compose and send a direct message |
+| `r` | Retry last unacknowledged message (input blurred; up to 3 attempts) |
 | `Ctrl+A` | Broadcast self-advertisement to mesh |
 | `s` | Enter select mode (blue border); `↑`/`↓` moves cursor, `d` deletes message, `s`/`Esc` exits |
 | `X` | Clear all messages — press twice to confirm (local only) |
@@ -237,6 +247,9 @@ yellow = <1 hr, red = older or never seen. Delivery-confirmed messages show
 Channels can be joined or left at any time. The well-known "Public" channel
 secret is built in — typing `Public` as the channel name will automatically
 use it, making the channel interoperable with other MeshCore clients.
+
+Outbound channel messages show `✓ sent (broadcast)` once the device confirms
+receipt. Channels are broadcast; there is no per-message remote ack or retry.
 
 | Key | Action |
 |-----|--------|

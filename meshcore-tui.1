@@ -77,6 +77,19 @@ Clear the list and restart the scan.
 .B q \fR/\fB Ctrl+C
 Cancel and exit.
 .SS "Chat tab"
+Outbound direct messages show a delivery status indicator after the text:
+.IP "\fB\&...\fR" 4
+BLE write in progress.
+.IP "\fB\(bu sent\fR" 4
+Device accepted the message and has a known path to the recipient.
+.IP "\fB\(bu sent (no path)\fR" 4
+Device sent as a blind flood; no cached route to recipient.
+.IP "\fB\(ck 42ms\fR" 4
+Remote node confirmed receipt; round-trip time shown.
+.IP "\fB? no ack\fR" 4
+No remote confirmation after 30 seconds.
+Press \fBr\fR (with input blurred) to retry, up to 3 times.
+.PP
 .TP
 .B \(ua \fR/\fB \(da
 Move between contacts (or navigate messages in select mode).
@@ -85,13 +98,18 @@ Move between contacts (or navigate messages in select mode).
 Open contact search filter.
 .TP
 .B Escape
-Clear search, exit select mode, or cancel input.
+Clear search, exit select mode, or blur the input.
 .TP
 .B PgUp \fR/\fB Ctrl+U\fR, \fBPgDn \fR/\fB Ctrl+D
 Scroll message history.
 .TP
 .BI "Type text" ", then " Enter
 Compose and send a direct message.
+.TP
+.B r
+Retry the last unacknowledged direct message (input must be blurred; press
+\fBEscape\fR first if needed).
+Up to 3 retry attempts per message.
 .TP
 .B Ctrl+A
 Broadcast a self-advertisement to the mesh.
@@ -244,12 +262,31 @@ Capture a debug log:
 .B meshcore\-tui \-\-debug 2>/tmp/mc.log
 .RE
 .SH "DELIVERY CONFIRMATION"
-Outbound direct messages show \fB\(ck\fR followed by the mesh round-trip time
-(e.g.\& \fB\(ck 42ms\fR) once the remote node confirms receipt via the
-MeshCore \fIPushSendConfirmed\fR event.
-Channel messages are broadcast; no per-message delivery confirmation is shown.
-There is no automatic retry \(em if a message is not delivered it must be
-resent manually.
+Outbound direct messages show a status indicator after the message text:
+.TP
+.B \&...
+BLE write in progress.
+.TP
+.B \(bu sent
+The device accepted the message and has a cached path to the recipient.
+.TP
+.B \(bu sent (no path)
+The device sent the message as a blind mesh flood; no cached route to recipient.
+This is normal for first contact or after a path has gone stale.
+.TP
+.B \(ck 42ms
+The remote node confirmed receipt (MeshCore \fIPushSendConfirmed\fR event).
+Round-trip time is shown.
+.TP
+.B ? no ack
+No confirmation arrived within 30 seconds.
+Press \fBr\fR (with input blurred) to retry.
+Up to 3 retry attempts are allowed; after that the message is left as
+unacknowledged and must be resent manually.
+.PP
+Channel messages are broadcast.
+They show \fB\(ck sent (broadcast)\fR once the device confirms receipt.
+There is no per-message remote ack or retry for channel messages.
 .SH "BLUETOOTH NOTES"
 On Linux, BlueZ must be running (\fBsystemctl status bluetooth\fR).
 Install the development headers if building from source:

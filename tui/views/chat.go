@@ -319,7 +319,25 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 				msgs := v.contacts[i].messages
 				for j := range msgs {
 					if msgs[j].status == StatusSent && msgs[j].timestamp.Equal(m.timestamp) {
-						v.contacts[i].messages[j].status = StatusNoAck
+						msg := &v.contacts[i].messages[j]
+						if msg.attempt >= 3 && v.client != nil {
+							// Retries exhausted — trigger path rediscovery (flood fallback)
+							// then retry once more with the refreshed route.
+							contact := v.contacts[i].contact
+							now := time.Now()
+							msg.attempt++
+							msg.status = StatusSending
+							msg.timestamp = now
+							text := msg.text
+							if i == v.selected {
+								v.rebuildViewport()
+							}
+							return v, tea.Batch(
+								pathDiscovery(v.client, contact),
+								sendDirectMsg(v.client, contact, text, now),
+							)
+						}
+						msg.status = StatusNoAck
 						if i == v.selected {
 							v.rebuildViewport()
 						}
@@ -814,6 +832,19 @@ func (v *ChatView) saveLastRead(idx int) {
 	key := hex.EncodeToString(v.contacts[idx].contact.PublicKey[:])
 	_ = v.store.SetLastRead(key, latest)
 	v.contacts[idx].lastRead = latest
+}
+
+// pathDiscovery sends a path-discovery request to force the firmware to find a
+// fresh route to the peer. Called automatically after 3 retries with no ack
+// (flood fallback for mobile mesh scenarios where the cached path is stale).
+func pathDiscovery(c *client.Client, contact companion.ContactResponse) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		identity := meshcore.NewIdentity(contact.PublicKey)
+		_, _ = c.SendPathDiscoveryReq(ctx, identity)
+		return nil
+	}
 }
 
 func sendDirectMsg(c *client.Client, contact companion.ContactResponse, text string, ts time.Time) tea.Cmd {

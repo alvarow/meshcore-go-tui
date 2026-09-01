@@ -178,6 +178,9 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 
 	switch m := msg.(type) {
 	case SessionReadyMsg:
+		if m.Client != nil {
+			v.client = m.Client
+		}
 		v.contacts = make([]contactItem, len(m.Contacts))
 		for i, c := range m.Contacts {
 			v.contacts[i] = contactItem{contact: c}
@@ -551,9 +554,11 @@ func (v *ChatView) saveLastRead(idx int) {
 
 func sendDirectMsg(c *client.Client, contact companion.ContactResponse, text string) tea.Cmd {
 	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
 		identity := meshcore.NewIdentity(contact.PublicKey)
-		_, err := c.SendTextMessage(context.Background(), identity, text, 0)
-		if err != nil {
+		_, err := c.SendTextMessage(ctx, identity, text, 0)
+		if err != nil && ctx.Err() == nil {
 			return sendErrMsg{err: err}
 		}
 		return nil

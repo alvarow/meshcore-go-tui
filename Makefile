@@ -27,6 +27,8 @@ clean:
 
 install:
 	go install $(LDFLAGS) .
+	install -d $(DESTDIR)$(PREFIX)/share/man/man1
+	install -m 644 meshcore-tui.1 $(DESTDIR)$(PREFIX)/share/man/man1/
 
 # Cross-compile targets
 build-linux-amd64:

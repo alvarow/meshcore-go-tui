@@ -45,12 +45,13 @@ func NewChannelView(c *client.Client, store *storage.Store) *ChannelView {
 	ti := textinput.New()
 	ti.Placeholder = "Type a message..."
 	ti.CharLimit = 200
+	ti.Focus()
 	return &ChannelView{client: c, store: store, input: ti}
 }
 
 func (v *ChannelView) Title() string { return "Channels" }
 
-func (v *ChannelView) Init() tea.Cmd { return nil }
+func (v *ChannelView) Init() tea.Cmd { return textinput.Blink }
 
 func chanUnreadSeparator(count, width int) string {
 	label := fmt.Sprintf(" %d unread ", count)
@@ -124,6 +125,9 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 
 	switch m := msg.(type) {
 	case SessionReadyMsg:
+		if m.Client != nil {
+			v.client = m.Client
+		}
 		v.channels = make([]channelItem, len(m.Channels))
 		for i, ch := range m.Channels {
 			v.channels[i] = channelItem{info: ch}
@@ -352,8 +356,13 @@ func (v *ChannelView) saveChannelLastRead(idx int) {
 
 func sendChannelMsg(c *client.Client, idx byte, text string) tea.Cmd {
 	return func() tea.Msg {
-		_, err := c.SendChannelTextMessage(context.Background(), idx, text, 0)
-		if err != nil {
+		// The device acknowledges with RespOk (not RespSent), so the SDK call
+		// blocks indefinitely without a timeout. 15 s is generous; in practice
+		// the device responds within milliseconds.
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		_, err := c.SendChannelTextMessage(ctx, idx, text, 0)
+		if err != nil && ctx.Err() == nil {
 			return sendErrMsg{err: err}
 		}
 		return nil

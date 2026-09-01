@@ -4,10 +4,12 @@ import (
 	"time"
 
 	"github.com/meshcore-go/meshcore-go/companion"
+	"github.com/meshcore-go/meshcore-go/companion/client"
 )
 
 // SessionReadyMsg is sent once the session startup sequence completes.
 type SessionReadyMsg struct {
+	Client   *client.Client
 	Self     companion.SelfInfoResponse
 	Contacts []companion.ContactResponse
 	Channels []companion.ChannelInfoResponse

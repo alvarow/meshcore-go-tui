@@ -1,0 +1,174 @@
+.TH MESHCORE\-TUI 1 "2026" "meshcore-tui" "User Commands"
+.SH NAME
+meshcore\-tui \- terminal UI companion client for MeshCore mesh radio nodes
+.SH SYNOPSIS
+.B meshcore\-tui
+[\fB\-\-transport\fR \fItype\fR]
+[\fB\-\-device\fR \fIaddress\fR]
+[\fB\-\-profile\fR \fIname\fR]
+[\fB\-\-debug\fR]
+.SH DESCRIPTION
+\fBmeshcore\-tui\fR is a terminal UI companion client that connects a laptop
+to a MeshCore mesh radio node over Bluetooth Low Energy (BLE), serial, or TCP.
+It provides chat, channels, node discovery, and device configuration in a
+five-tab interface.
+.PP
+If no \fB\-\-device\fR is given and the transport is BLE, an interactive
+scan picker launches so you can choose your node.
+.SH OPTIONS
+.TP
+.BR \-\-transport " " \fItype\fR
+Transport to use.
+Valid values: \fBble\fR (default), \fBserial\fR, \fBtcp\fR.
+Overrides \fIdefault_transport\fR from the config file.
+.TP
+.BR \-\-device " " \fIaddress\fR
+Device to connect to directly, skipping the BLE scan picker.
+BLE: MAC address (e.g.\& \fBAA:BB:CC:DD:EE:FF\fR).
+Serial: port path (e.g.\& \fB/dev/ttyUSB0\fR).
+TCP: host:port (e.g.\& \fB192.168.1.100:3000\fR).
+.TP
+.BR \-\-profile " " \fIname\fR
+Load connection settings from a named profile in the config file.
+.TP
+.B \-\-debug
+Log BLE operations and protocol messages to stderr.
+Useful for diagnosing connection problems.
+Redirect with \fB2>/tmp/mc.log\fR.
+.SH "KEYBOARD SHORTCUTS"
+.SS Global
+.TP
+.B 1\-5 \fR/\fB Tab \fR/\fB Shift+Tab
+Switch tabs: Chat, Channels, Nodes, Device, Settings.
+.TP
+.B q \fR/\fB Ctrl+C
+Quit.
+.SS "BLE scan picker (startup)"
+.TP
+.B \(ua \fR/\fB \(da \fR, \fB j \fR/\fB k
+Navigate the device list.
+.TP
+.B Enter
+Connect to the selected device.
+.TP
+.B r
+Clear the list and restart the scan.
+.TP
+.B q \fR/\fB Ctrl+C
+Cancel and exit.
+.SS "Chat tab"
+.TP
+.B \(ua \fR/\fB \(da
+Move between contacts.
+.TP
+.B /
+Open contact search filter.
+.TP
+.B Escape
+Clear search or cancel input.
+.TP
+.B PgUp \fR/\fB Ctrl+U\fR, \fBPgDn \fR/\fB Ctrl+D
+Scroll message history.
+.TP
+.BI "Type text" ", then " Enter
+Compose and send a direct message.
+.SS "Channels tab"
+.TP
+.B \(ua \fR/\fB \(da
+Move between channels.
+.TP
+.B PgUp \fR/\fB Ctrl+U\fR, \fBPgDn \fR/\fB Ctrl+D
+Scroll message history.
+.TP
+.BI "Type text" ", then " Enter
+Compose and send a channel message.
+.SH FILES
+.TP
+.I ~/.config/meshcore/config.toml
+Configuration file.
+Created automatically on first save from the Settings tab.
+.TP
+.I ~/.local/share/meshcore/messages.db
+bbolt database storing message history and per-contact read positions.
+.SH CONFIGURATION
+The config file uses TOML syntax.
+All keys are optional and fall back to built-in defaults.
+.PP
+.RS
+.nf
+default_transport = "ble"
+default_device    = "AA:BB:CC:DD:EE:FF"
+scan_name_filter  = ""
+
+[profile.home]
+transport = "tcp"
+device    = "192.168.1.5:3000"
+.fi
+.RE
+.PP
+Activate a named profile with \fB\-\-profile home\fR.
+.SH EXAMPLES
+Open the BLE scan picker and choose a device interactively:
+.PP
+.RS
+.B meshcore\-tui
+.RE
+.PP
+Connect directly to a known BLE address:
+.PP
+.RS
+.B meshcore\-tui \-\-device AA:BB:CC:DD:EE:FF
+.RE
+.PP
+Connect over serial:
+.PP
+.RS
+.B meshcore\-tui \-\-transport serial \-\-device /dev/ttyUSB0
+.RE
+.PP
+Connect over TCP:
+.PP
+.RS
+.B meshcore\-tui \-\-transport tcp \-\-device 192.168.1.100:3000
+.RE
+.PP
+Use a named profile:
+.PP
+.RS
+.B meshcore\-tui \-\-profile home
+.RE
+.PP
+Capture a debug log:
+.PP
+.RS
+.B meshcore\-tui \-\-debug 2>/tmp/mc.log
+.RE
+.SH "DELIVERY CONFIRMATION"
+Outbound direct messages show a check indicator once the remote node
+confirms receipt via the MeshCore \fIPushSendConfirmed\fR event.
+Channel messages are broadcast; no per-message delivery confirmation is shown.
+There is no automatic retry \(em if a message is not delivered it must be
+resent manually.
+.SH "BLUETOOTH NOTES"
+On Linux, BlueZ must be running (\fBsystemctl status bluetooth\fR).
+Install the development headers if building from source:
+.PP
+.RS
+.B sudo apt install bluez libbluetooth-dev
+.RE
+.PP
+On first connection, pair the node:
+.PP
+.RS
+.nf
+bluetoothctl
+pair AA:BB:CC:DD:EE:FF
+trust AA:BB:CC:DD:EE:FF
+.fi
+.RE
+.SH "SEE ALSO"
+.BR bluetoothctl (1)
+.SH AUTHORS
+Álvaro Reguly and contributors.
+.PP
+Project page: \fIhttps://github.com/alvarow/meshcore-go-tui\fR

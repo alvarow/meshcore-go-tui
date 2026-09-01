@@ -185,6 +185,7 @@ To set a default in config (~/.config/meshcore/config.toml):
 
 		p.Send(tui.ConnectedMsg{DeviceName: deviceName})
 		p.Send(views.SessionReadyMsg{
+			Client:   c,
 			Self:     self,
 			Contacts: contacts,
 			Channels: channels,

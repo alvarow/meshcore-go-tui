@@ -78,6 +78,9 @@ func NewChatView(c *client.Client, store *storage.Store) *ChatView {
 }
 
 func (v *ChatView) Title() string { return "Chat" }
+func (v *ChatView) InputFocused() bool {
+	return v.input.Focused() || v.searchInput.Focused()
+}
 
 func (v *ChatView) Init() tea.Cmd { return textinput.Blink }
 

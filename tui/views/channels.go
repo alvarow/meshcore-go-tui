@@ -68,6 +68,7 @@ func NewChannelView(c *client.Client, store *storage.Store) *ChannelView {
 }
 
 func (v *ChannelView) Title() string { return "Channels" }
+func (v *ChannelView) InputFocused() bool { return v.input.Focused() }
 
 func (v *ChannelView) Init() tea.Cmd { return textinput.Blink }
 

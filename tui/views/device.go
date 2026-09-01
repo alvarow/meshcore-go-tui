@@ -20,7 +20,8 @@ func NewDeviceView() *DeviceView {
 	return &DeviceView{}
 }
 
-func (v *DeviceView) Title() string { return "Device" }
+func (v *DeviceView) Title() string     { return "Device" }
+func (v *DeviceView) InputFocused() bool { return false }
 
 func (v *DeviceView) Init() tea.Cmd { return nil }
 

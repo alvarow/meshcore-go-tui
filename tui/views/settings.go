@@ -94,6 +94,11 @@ func NewSettingsView(cfg *config.Config) *SettingsView {
 	}
 }
 
+func (v *SettingsView) InputFocused() bool {
+	return v.deviceInput.Focused() || v.filterInput.Focused() ||
+		v.editName.Focused() || v.editDevice.Focused()
+}
+
 func (v *SettingsView) Title() string {
 	if v.dirty {
 		return "Settings *"

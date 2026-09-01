@@ -86,9 +86,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = m.Height
 
 	case tea.KeyMsg:
+		inputBusy := a.tabs[a.activeTab].InputFocused()
 		switch m.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c":
 			return a, tea.Quit
+		case "q":
+			if !inputBusy {
+				return a, tea.Quit
+			}
 		case "ctrl+tab":
 			a.switchTab((a.activeTab + 1) % len(a.tabs))
 			return a, nil
@@ -96,10 +101,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.switchTab((a.activeTab - 1 + len(a.tabs)) % len(a.tabs))
 			return a, nil
 		case "1", "2", "3", "4", "5":
-			idx := int(m.String()[0] - '1')
-			if idx < len(a.tabs) {
-				a.switchTab(idx)
-				return a, nil
+			if !inputBusy {
+				idx := int(m.String()[0] - '1')
+				if idx < len(a.tabs) {
+					a.switchTab(idx)
+					return a, nil
+				}
 			}
 		}
 

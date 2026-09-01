@@ -29,7 +29,8 @@ func NewNodesView() *NodesView {
 	return &NodesView{}
 }
 
-func (v *NodesView) Title() string { return "Nodes" }
+func (v *NodesView) Title() string   { return "Nodes" }
+func (v *NodesView) InputFocused() bool { return false }
 
 func (v *NodesView) Init() tea.Cmd { return nil }
 

@@ -27,6 +27,7 @@ test:
 
 lint:
 	go vet ./...
+	# go install golang.org/x/vuln/cmd/govulncheck@latest
 	@command -v $$(go env GOPATH)/bin/govulncheck >/dev/null 2>&1 && $$(go env GOPATH)/bin/govulncheck ./... || true
 
 clean:

@@ -85,7 +85,7 @@ To set a default in config (~/.config/meshcore/config.toml):
 		store = nil
 	}
 	if store != nil {
-		defer store.Close()
+		defer func() { _ = store.Close() }()
 	}
 
 	// Create client placeholder; will be set after transport connects.

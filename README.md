@@ -272,6 +272,15 @@ receipt. Channels are broadcast; there is no per-message remote ack or retry.
 | `↑` / `k` | Move selection up |
 | `↓` / `j` | Move selection down |
 
+## Acknowledgements
+
+This project stands on the shoulders of the [Charm](https://charm.sh) team's
+exceptional work.  [Bubble Tea](https://github.com/charmbracelet/bubbletea),
+[Bubbles](https://github.com/charmbracelet/bubbles), and
+[Lip Gloss](https://github.com/charmbracelet/lipgloss) make building polished
+terminal UIs in Go a genuine pleasure — if you've enjoyed using this app,
+go give them a ⭐.
+
 ## Dependencies
 
 | Package | Role |

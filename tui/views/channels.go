@@ -266,6 +266,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 			if v.selectMode {
 				v.selectMode = false
 				v.clearPending = false
+				v.input.Focus()
 				v.rebuildViewport()
 				return v, nil
 			}
@@ -274,6 +275,10 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				v.joinName = ""
 				v.input.SetValue("")
 				v.input.Placeholder = "Type a message..."
+				v.input.Focus()
+			} else {
+				// Blur input so letter-command keys (s, d, n, q) become available.
+				v.input.Blur()
 			}
 			v.leaveConfirmPending = false
 			return v, nil
@@ -287,12 +292,14 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 			}
 			return v, nil
 
-		case key.Matches(m, v.km.SelectMode):
+		case key.Matches(m, v.km.SelectMode) && !v.input.Focused():
 			if v.selectMode {
 				v.selectMode = false
+				v.input.Focus()
 			} else if v.selected < len(v.channels) && len(v.channels[v.selected].messages) > 0 {
 				v.selectMode = true
 				v.selectedMsg = len(v.channels[v.selected].messages) - 1
+				v.input.Blur()
 			}
 			v.clearPending = false
 			v.rebuildViewport()
@@ -349,7 +356,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				return v, nil
 			}
 
-		case key.Matches(m, v.km.LeaveChan) && !v.selectMode:
+		case key.Matches(m, v.km.LeaveChan) && !v.selectMode && !v.input.Focused():
 			if v.mode == modeChanChat && v.client != nil && len(v.channels) > 0 {
 				if v.leaveConfirmPending {
 					v.leaveConfirmPending = false
@@ -454,6 +461,12 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 		case key.Matches(m, v.km.ScrollDown) || m.String() == "ctrl+d":
 			v.vp, cmd = v.vp.Update(msg)
 			return v, cmd
+		}
+		// Any printable key while input is blurred and not in select mode
+		// re-focuses the input so the user can start typing immediately.
+		if !v.input.Focused() && !v.selectMode && v.mode == modeChanChat &&
+			len(m.String()) == 1 && m.String() != "esc" {
+			v.input.Focus()
 		}
 
 	case tea.WindowSizeMsg:

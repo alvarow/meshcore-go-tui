@@ -431,19 +431,21 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			}
 			return v, nil
 
-		case key.Matches(m, v.km.SelectMode):
+		case key.Matches(m, v.km.SelectMode) && !v.input.Focused():
 			if v.selectMode {
 				v.selectMode = false
+				v.input.Focus()
 			} else if v.selected < len(v.contacts) && len(v.contacts[v.selected].messages) > 0 {
 				v.selectMode = true
 				v.selectedMsg = len(v.contacts[v.selected].messages) - 1
+				v.input.Blur()
 			}
 			v.clearPending = false
 			v.rebuildViewport()
 			return v, nil
 
-		case key.Matches(m, v.km.DeleteMsg):
-			if v.selectMode && v.selected < len(v.contacts) {
+		case key.Matches(m, v.km.DeleteMsg) && v.selectMode && !v.input.Focused():
+			if v.selected < len(v.contacts) {
 				msgs := v.contacts[v.selected].messages
 				if v.selectedMsg < len(msgs) {
 					ts := msgs[v.selectedMsg].timestamp
@@ -483,9 +485,13 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			if v.selectMode {
 				v.selectMode = false
 				v.clearPending = false
+				v.input.Focus()
 				v.rebuildViewport()
 				return v, nil
 			}
+			// Blur the input so 1-5, q, s, etc. work as commands.
+			v.input.Blur()
+			return v, nil
 
 		case key.Matches(m, v.km.Advert):
 			if v.client != nil {
@@ -553,6 +559,12 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 		case key.Matches(m, v.km.ScrollDown) || m.String() == "ctrl+d":
 			v.vp, cmd = v.vp.Update(msg)
 			return v, cmd
+		}
+		// Any printable key while input is blurred re-focuses so the user
+		// can start typing immediately without an extra keypress.
+		if !v.input.Focused() && !v.selectMode && !v.searchMode &&
+			len(m.String()) == 1 && m.String() != "esc" {
+			v.input.Focus()
 		}
 
 	case tea.WindowSizeMsg:

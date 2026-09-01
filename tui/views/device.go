@@ -11,8 +11,8 @@ import (
 )
 
 type DeviceView struct {
-	self  *companion.SelfInfoResponse
-	width int
+	self   *companion.SelfInfoResponse
+	width  int
 	height int
 }
 
@@ -20,7 +20,7 @@ func NewDeviceView() *DeviceView {
 	return &DeviceView{}
 }
 
-func (v *DeviceView) Title() string     { return "Device" }
+func (v *DeviceView) Title() string      { return "Device" }
 func (v *DeviceView) InputFocused() bool { return false }
 
 func (v *DeviceView) Init() tea.Cmd { return nil }
@@ -43,7 +43,7 @@ func (v *DeviceView) View() string {
 	}
 
 	style := lipgloss.NewStyle().
-		Width(v.width-2).Height(v.height-4).
+		Width(v.width - 2).Height(v.height - 4).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#475569"))
 
@@ -57,7 +57,7 @@ func (v *DeviceView) View() string {
 	value := lipgloss.NewStyle().Foreground(lipgloss.Color("#E2E8F0"))
 
 	pubkeyHex := hex.EncodeToString(v.self.PublicKey[:6]) + "..."
-	freqMHz := float64(v.self.RadioFrequency) / 1_000.0  // field is in kHz
+	freqMHz := float64(v.self.RadioFrequency) / 1_000.0 // field is in kHz
 	bwKHz := float64(v.self.RadioBandwidth) / 1_000.0
 
 	var lines []string

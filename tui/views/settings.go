@@ -5,11 +5,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/alvarow/meshcore-go-tui/config"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/alvarow/meshcore-go-tui/config"
 )
 
 type settingsFocus int
@@ -579,4 +579,3 @@ func (v *SettingsView) View() string {
 
 	return main
 }
-

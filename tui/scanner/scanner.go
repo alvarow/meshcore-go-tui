@@ -135,7 +135,6 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		updated, insertCmd := m.handleFound(device(msg))
 		return updated, tea.Batch(insertCmd, startScan(m.done, m.nameFilter))
 
-
 	case scanErrMsg:
 		errStr := msg.err.Error()
 		if strings.Contains(errStr, "org.bluez") || strings.Contains(errStr, "enable adapter") || strings.Contains(errStr, "no adapter") {

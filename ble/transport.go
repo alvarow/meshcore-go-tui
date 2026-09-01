@@ -335,6 +335,9 @@ func (t *Transport) Send(command []byte) error {
 }
 
 func (t *Transport) onNotification(buf []byte) {
+	if len(buf) == 0 {
+		return
+	}
 	t.debugf("notification: %d bytes code=0x%02x", len(buf), buf[0])
 	// BLE uses raw (unframed) responses — each notification IS a complete response.
 	t.mu.Lock()

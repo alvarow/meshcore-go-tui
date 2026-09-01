@@ -203,7 +203,7 @@ func TestLoadLimit(t *testing.T) {
 		t.Fatalf("limit=5: want 5, got %d", len(msgs))
 	}
 	// Should be the 5 newest in oldest-first order.
-	if msgs[0].Timestamp.Before(base.Add(14*time.Second)) {
+	if msgs[0].Timestamp.Before(base.Add(14 * time.Second)) {
 		t.Errorf("expected newest 5, got older messages")
 	}
 }

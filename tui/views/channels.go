@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alvarow/meshcore-go-tui/config"
+	"github.com/alvarow/meshcore-go-tui/storage"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/alvarow/meshcore-go-tui/config"
-	"github.com/alvarow/meshcore-go-tui/storage"
 	"github.com/meshcore-go/meshcore-go/companion"
 	"github.com/meshcore-go/meshcore-go/companion/client"
 )
@@ -76,7 +76,7 @@ func NewChannelView(c *client.Client, store *storage.Store, km config.KeyMap) *C
 	return &ChannelView{client: c, store: store, km: km, input: ti}
 }
 
-func (v *ChannelView) Title() string { return "Channels" }
+func (v *ChannelView) Title() string      { return "Channels" }
 func (v *ChannelView) InputFocused() bool { return v.input.Focused() }
 
 func (v *ChannelView) Init() tea.Cmd { return textinput.Blink }
@@ -168,6 +168,12 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 		if m.Client != nil {
 			v.client = m.Client
 		}
+		v.selectMode = false
+		v.clearPending = false
+		v.offRecord = false
+		v.leaveConfirmPending = false
+		v.mode = modeChanChat
+		v.input.Placeholder = "Type a message..."
 		v.channels = make([]channelItem, len(m.Channels))
 		for i, ch := range m.Channels {
 			v.channels[i] = channelItem{info: ch}
@@ -248,6 +254,11 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 		}})
 		v.selected = len(v.channels) - 1
 		v.appendSystem("joined #" + m.name)
+		v.rebuildViewport()
+		return v, nil
+
+	case sendErrMsg:
+		v.appendSystem("send failed: " + m.err.Error())
 		v.rebuildViewport()
 		return v, nil
 

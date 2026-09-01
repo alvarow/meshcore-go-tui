@@ -54,20 +54,6 @@ type ackTimeoutMsg struct {
 	timestamp  time.Time
 }
 
-// pingTimeoutMsg fires when a /ping gets no PushStatusResponse within 30s.
-type pingTimeoutMsg struct {
-	contactKey string
-	prefix     [6]byte
-	msgTime    time.Time
-}
-
-// traceTimeoutMsg fires when a /trace gets no PathDiscoveryMsg within 30s.
-type traceTimeoutMsg struct {
-	contactKey string
-	prefix     [6]byte
-	msgTime    time.Time
-}
-
 type contactItem struct {
 	contact  companion.ContactResponse
 	messages []chatMessage
@@ -91,7 +77,6 @@ type ChatView struct {
 	selectedMsg  int
 	offRecord    bool
 	clearPending bool
-	pingStart    map[[6]byte]time.Time // pending pings keyed by pubkey prefix
 	width        int
 	height       int
 }
@@ -109,7 +94,7 @@ func NewChatView(c *client.Client, store *storage.Store, km config.KeyMap) *Chat
 	si.CharLimit = 40
 	si.Width = listWidth - 4
 
-	return &ChatView{client: c, store: store, km: km, input: ti, searchInput: si, pingStart: make(map[[6]byte]time.Time)}
+	return &ChatView{client: c, store: store, km: km, input: ti, searchInput: si}
 }
 
 func (v *ChatView) Title() string { return "Chat" }
@@ -247,6 +232,11 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 		if m.Client != nil {
 			v.client = m.Client
 		}
+		// Reset transient UI state so a reconnect doesn't leave stale modes.
+		v.selectMode = false
+		v.clearPending = false
+		v.offRecord = false
+		v.input.Placeholder = "Type a message..."
 		v.contacts = make([]contactItem, len(m.Contacts))
 		for i, c := range m.Contacts {
 			v.contacts[i] = contactItem{contact: c}
@@ -259,7 +249,9 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 							if sm.Acked {
 								status = StatusAcked
 							} else {
-								status = StatusSending
+								// Unacked outbound from a previous session — no ack will
+								// ever arrive now; show as no-ack so the user can retry.
+								status = StatusNoAck
 							}
 						}
 						v.contacts[i].messages = append(v.contacts[i].messages, chatMessage{
@@ -404,94 +396,6 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			if v.contacts[i].contact.PublicKey == m.PubKey {
 				v.contacts[i].lastSeen = time.Now()
 				v.rebuildViewport()
-				break
-			}
-		}
-		return v, nil
-
-	case pingResultMsg:
-		// Send completed — start 30s timeout waiting for PushStatusResponse.
-		return v, tea.Tick(30*time.Second, func(time.Time) tea.Msg {
-			return pingTimeoutMsg{contactKey: m.contactKey, prefix: m.prefix, msgTime: m.msgTime}
-		})
-
-	case traceResultMsg:
-		return v, tea.Tick(30*time.Second, func(time.Time) tea.Msg {
-			return traceTimeoutMsg{contactKey: m.contactKey, prefix: m.prefix, msgTime: m.msgTime}
-		})
-
-	case pingTimeoutMsg:
-		if _, pending := v.pingStart[m.prefix]; pending {
-			delete(v.pingStart, m.prefix)
-			// Replace the "ping sent…" system message with "ping: no reply".
-			for i := range v.contacts {
-				if hex.EncodeToString(v.contacts[i].contact.PublicKey[:]) == m.contactKey {
-					msgs := v.contacts[i].messages
-					for j := len(msgs) - 1; j >= 0; j-- {
-						if msgs[j].isSystem && msgs[j].timestamp.Equal(m.msgTime) {
-							v.contacts[i].messages[j].text = "ping: no reply (peer unreachable or offline)"
-							if i == v.selected {
-								v.rebuildViewport()
-							}
-							break
-						}
-					}
-					break
-				}
-			}
-		}
-		return v, nil
-
-	case traceTimeoutMsg:
-		for i := range v.contacts {
-			if hex.EncodeToString(v.contacts[i].contact.PublicKey[:]) == m.contactKey {
-				msgs := v.contacts[i].messages
-				for j := len(msgs) - 1; j >= 0; j-- {
-					if msgs[j].isSystem && msgs[j].timestamp.Equal(m.msgTime) {
-						v.contacts[i].messages[j].text = "trace: no reply (peer unreachable or offline)"
-						if i == v.selected {
-							v.rebuildViewport()
-						}
-						break
-					}
-				}
-				break
-			}
-		}
-		return v, nil
-
-	case PeerStatusMsg:
-		for i := range v.contacts {
-			var p6 [6]byte
-			copy(p6[:], v.contacts[i].contact.PublicKey[:6])
-			if p6 == m.PubKeyPrefix {
-				sys := "ping: no reply recorded"
-				if start, ok := v.pingStart[p6]; ok {
-					rtt := time.Since(start).Round(time.Millisecond)
-					delete(v.pingStart, p6)
-					sys = fmt.Sprintf("ping reply: %v", rtt)
-				}
-				v.contacts[i].messages = append(v.contacts[i].messages,
-					chatMessage{text: sys, isSystem: true, timestamp: time.Now()})
-				if i == v.selected {
-					v.rebuildViewport()
-				}
-				break
-			}
-		}
-		return v, nil
-
-	case PathDiscoveryMsg:
-		for i := range v.contacts {
-			var p6 [6]byte
-			copy(p6[:], v.contacts[i].contact.PublicKey[:6])
-			if p6 == m.PubKeyPrefix {
-				sys := fmt.Sprintf("trace: %d hops out, %d hops back", m.OutHops, m.InHops)
-				v.contacts[i].messages = append(v.contacts[i].messages,
-					chatMessage{text: sys, isSystem: true, timestamp: time.Now()})
-				if i == v.selected {
-					v.rebuildViewport()
-				}
 				break
 			}
 		}
@@ -740,19 +644,6 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 
 		case key.Matches(m, v.km.Send):
 			raw := strings.TrimSpace(v.input.Value())
-			// Slash commands: /ping and /trace act on the selected contact.
-			if strings.ToLower(raw) == "/ping" && v.client != nil && v.selected < len(v.contacts) {
-				v.input.Reset()
-				contact := v.contacts[v.selected].contact
-				var p6 [6]byte
-				copy(p6[:], contact.PublicKey[:6])
-				now := time.Now()
-				v.pingStart[p6] = now
-				v.contacts[v.selected].messages = append(v.contacts[v.selected].messages,
-					chatMessage{text: "ping sent…", isSystem: true, timestamp: now})
-				v.rebuildViewport()
-				return v, pingContact(v.client, contact, now)
-			}
 			if strings.HasPrefix(strings.ToLower(raw), "/location ") && v.client != nil {
 				v.input.Reset()
 				return v, setLocation(v.client, raw[len("/location "):], func(sys string) {
@@ -762,15 +653,6 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 						v.rebuildViewport()
 					}
 				})
-			}
-			if strings.ToLower(raw) == "/trace" && v.client != nil && v.selected < len(v.contacts) {
-				v.input.Reset()
-				contact := v.contacts[v.selected].contact
-				now := time.Now()
-				v.contacts[v.selected].messages = append(v.contacts[v.selected].messages,
-					chatMessage{text: "trace sent…", isSystem: true, timestamp: now})
-				v.rebuildViewport()
-				return v, traceContact(v.client, contact, now)
 			}
 			text := expandShortcodes(raw)
 			if text == "" || v.client == nil || len(v.contacts) == 0 {
@@ -969,49 +851,6 @@ func (v *ChatView) saveLastRead(idx int) {
 	key := hex.EncodeToString(v.contacts[idx].contact.PublicKey[:])
 	_ = v.store.SetLastRead(key, latest)
 	v.contacts[idx].lastRead = latest
-}
-
-type pingResultMsg struct {
-	contactKey string
-	prefix     [6]byte
-	msgTime    time.Time
-}
-
-type traceResultMsg struct {
-	contactKey string
-	prefix     [6]byte
-	msgTime    time.Time
-}
-
-// pingContact sends a status request to the peer. Returns pingResultMsg so the
-// view can start a timeout timer; PeerStatusMsg arrives when the peer responds.
-func pingContact(c *client.Client, contact companion.ContactResponse, msgTime time.Time) tea.Cmd {
-	var p6 [6]byte
-	copy(p6[:], contact.PublicKey[:6])
-	ck := hex.EncodeToString(contact.PublicKey[:])
-	return func() tea.Msg {
-		// Short timeout: firmware responds with RespSent (not RespOk as the SDK
-		// expects), so sendAndWait will time out — but the request is already
-		// in flight. 3s is enough to confirm it was sent.
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		_ = c.SendStatusReq(ctx, meshcore.NewIdentity(contact.PublicKey))
-		return pingResultMsg{contactKey: ck, prefix: p6, msgTime: msgTime}
-	}
-}
-
-// traceContact sends a path-discovery request. Returns traceResultMsg so the
-// view can start a timeout timer; PathDiscoveryMsg arrives when mesh responds.
-func traceContact(c *client.Client, contact companion.ContactResponse, msgTime time.Time) tea.Cmd {
-	var p6 [6]byte
-	copy(p6[:], contact.PublicKey[:6])
-	ck := hex.EncodeToString(contact.PublicKey[:])
-	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		_, _ = c.SendPathDiscoveryReq(ctx, meshcore.NewIdentity(contact.PublicKey))
-		return traceResultMsg{contactKey: ck, prefix: p6, msgTime: msgTime}
-	}
 }
 
 // setLocation pushes GPS coordinates to the device's advertised location.

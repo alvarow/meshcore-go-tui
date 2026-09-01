@@ -230,12 +230,18 @@ To set a default in config (~/.config/meshcore/config.toml):
 		})
 
 		c.OnPush(companion.PushSendConfirmed, func(resp companion.Response) {
-			confirmed := resp.Data.(companion.PushSendConfirmedResponse)
+			confirmed, ok := resp.Data.(companion.PushSendConfirmedResponse)
+			if !ok {
+				return
+			}
 			p.Send(views.OutboundAckMsg{RoundTripMs: confirmed.RoundTrip})
 		})
 
 		c.OnPush(companion.PushNewAdvert, func(resp companion.Response) {
-			advert := resp.Data.(companion.PushNewAdvertResponse)
+			advert, ok := resp.Data.(companion.PushNewAdvertResponse)
+			if !ok {
+				return
+			}
 			lastSeen := "unknown"
 			if advert.LastAdvert > 0 {
 				lastSeen = time.Unix(int64(advert.LastAdvert), 0).Format("2006-01-02 15:04:05")
@@ -254,32 +260,22 @@ To set a default in config (~/.config/meshcore/config.toml):
 		})
 
 		c.OnPush(companion.PushAdvert, func(resp companion.Response) {
-			// Older advert push — only carries pubkey, no name. Upsert with empty name.
-			advert := resp.Data.(companion.PushAdvertResponse)
+			advert, ok := resp.Data.(companion.PushAdvertResponse)
+			if !ok {
+				return
+			}
 			debugf("advert (legacy): pubkey=%x", advert.PublicKey[:6])
 			p.Send(views.NodeAdvertMsg{PubKey: advert.PublicKey})
 		})
 
 		c.OnPush(companion.PushContactDeleted, func(resp companion.Response) {
-			del := resp.Data.(companion.PushContactDeletedResponse)
+			del, ok := resp.Data.(companion.PushContactDeletedResponse)
+			if !ok {
+				return
+			}
 			p.Send(views.ContactDeletedMsg{PublicKey: del.PublicKey})
 		})
 
-		c.OnPush(companion.PushStatusResponse, func(resp companion.Response) {
-			sr := resp.Data.(companion.PushStatusResp)
-			debugf("status response from %x", sr.PubKeyPrefix)
-			p.Send(views.PeerStatusMsg{PubKeyPrefix: sr.PubKeyPrefix})
-		})
-
-		c.OnPush(companion.PushPathDiscoveryResponse, func(resp companion.Response) {
-			pr := resp.Data.(companion.PushPathDiscoveryResp)
-			debugf("path discovery response from %x: out=%d in=%d", pr.PubKeyPrefix, pr.OutPathLen, pr.InPathLen)
-			p.Send(views.PathDiscoveryMsg{
-				PubKeyPrefix: pr.PubKeyPrefix,
-				OutHops:      pr.OutPathLen,
-				InHops:       pr.InPathLen,
-			})
-		})
 	}()
 
 	if _, err := p.Run(); err != nil {

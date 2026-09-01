@@ -106,14 +106,6 @@ Scroll message history.
 .BI "Type text" ", then " Enter
 Compose and send a direct message.
 .TP
-.B /ping
-Ping the selected contact.
-Reply appears inline as \fI\(em ping reply: 234ms \(em\fR.
-.TP
-.B /trace
-Trace the mesh path to the selected contact.
-Reply appears inline as \fI\(em trace: 2 hops out, 1 hops back \(em\fR.
-.TP
 .BI "/location " "lat lon"
 Set your advertised GPS coordinates on the device (decimal degrees,
 e.g.\& \fB/location 4.099645 \-7.403468\fR).
@@ -121,7 +113,7 @@ Coordinates you supply are pushed to the firmware; the SDK does not read
 from the hardware GPS sensor.
 .PP
 Typing \fB/\fR only opens contact search when the input is empty.
-Starting \fB/ping\fR, \fB/trace\fR, or \fB/location\fR does not trigger search.
+Starting \fB/location\fR does not trigger search.
 .TP
 .B r
 Retry the last unacknowledged direct message (input must be blurred; press
@@ -201,19 +193,9 @@ Selecting a node shows a detail bar beneath the list containing:
 \fBloc\fR \(em advertised GPS coordinates (lat,lon) if set by the node
 .IP \(bu 2
 \fBlast_advert\fR \(em timestamp from the node's own firmware
-.IP \(bu 2
-\fBping\fR and \fBtrace\fR results when measured
 .TP
 .B \(ua \fR/\fB \(da \fR, \fB k \fR/\fB j
 Move selection up / down.
-.TP
-.B p
-Ping the selected node (\fBSendStatusReq\fR).
-Round-trip time appears in the detail bar when the reply arrives.
-.TP
-.B t
-Trace the mesh path to the selected node (\fBSendPathDiscoveryReq\fR).
-Hop counts appear in the detail bar when the reply arrives.
 .SH "KEY BINDING CONFIGURATION"
 Any key binding can be overridden in the \fB[keys]\fR section of
 \fI~/.config/meshcore-go-tui/config.toml\fR.

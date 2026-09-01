@@ -34,10 +34,10 @@ type NodeAdvertMsg struct {
 	SNR        float32
 	RSSI       int8
 	PubKey     [32]byte
-	OutHops    byte    // hops to reach this node (0 = direct)
-	Lat        int32   // advertised latitude  × 1e7 (0 = not set)
-	Lon        int32   // advertised longitude × 1e7 (0 = not set)
-	LastAdvert uint32  // Unix timestamp of node's own last advert (0 = unknown)
+	OutHops    byte   // hops to reach this node (0 = direct)
+	Lat        int32  // advertised latitude  × 1e7 (0 = not set)
+	Lon        int32  // advertised longitude × 1e7 (0 = not set)
+	LastAdvert uint32 // Unix timestamp of node's own last advert (0 = unknown)
 }
 
 // InboundChannelMsg is sent when a group channel message arrives.
@@ -50,18 +50,6 @@ type InboundChannelMsg struct {
 // ContactDeletedMsg is sent when a contact is removed from the device.
 type ContactDeletedMsg struct {
 	PublicKey [32]byte
-}
-
-// PeerStatusMsg is sent when PushStatusResponse arrives (reply to SendStatusReq/ping).
-type PeerStatusMsg struct {
-	PubKeyPrefix [6]byte
-}
-
-// PathDiscoveryMsg is sent when PushPathDiscoveryResponse arrives (reply to SendPathDiscoveryReq/trace).
-type PathDiscoveryMsg struct {
-	PubKeyPrefix [6]byte
-	OutHops      byte
-	InHops       byte
 }
 
 // ReconnectingMsg is sent when the BLE transport detects a disconnect and begins reconnecting.

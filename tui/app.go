@@ -72,8 +72,7 @@ func (a *App) Init() tea.Cmd {
 func isBroadcastMsg(msg tea.Msg) bool {
 	switch msg.(type) {
 	case views.SessionReadyMsg, views.InboundDirectMsg, views.OutboundAckMsg,
-		views.NodeAdvertMsg, views.InboundChannelMsg, views.ContactDeletedMsg,
-		views.PeerStatusMsg, views.PathDiscoveryMsg:
+		views.NodeAdvertMsg, views.InboundChannelMsg, views.ContactDeletedMsg:
 		return true
 	}
 	return false

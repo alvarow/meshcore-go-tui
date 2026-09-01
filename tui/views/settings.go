@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/alvarow/meshcore-go-tui/config"
@@ -47,6 +48,9 @@ type SettingsView struct {
 	editDevice    textinput.Model
 	editTransport config.Transport
 	editFocus     int // 0=name 1=transport 2=device
+
+	vp      viewport.Model
+	vpReady bool
 
 	status string
 	width  int
@@ -186,6 +190,13 @@ func (v *SettingsView) Update(msg tea.Msg) (View, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		v.width = m.Width
 		v.height = m.Height
+		if !v.vpReady {
+			v.vp = viewport.New(m.Width, m.Height)
+			v.vpReady = true
+		} else {
+			v.vp.Width = m.Width
+			v.vp.Height = m.Height
+		}
 		return v, nil
 
 	case tea.KeyMsg:
@@ -293,6 +304,16 @@ func (v *SettingsView) Update(msg tea.Msg) (View, tea.Cmd) {
 					v.profSelected--
 				}
 				v.dirty = true
+			}
+			return v, nil
+		case "pgup", "ctrl+u":
+			if v.vpReady {
+				v.vp.HalfViewUp()
+			}
+			return v, nil
+		case "pgdn", "ctrl+d":
+			if v.vpReady {
+				v.vp.HalfViewDown()
 			}
 			return v, nil
 		}
@@ -485,12 +506,17 @@ func (v *SettingsView) View() string {
 	if statusLine != "" {
 		parts = append(parts, "", statusLine)
 	}
-	main := lipgloss.NewStyle().
+	content := lipgloss.NewStyle().
 		Background(bg).
 		Width(v.width).
-		Height(v.height).
 		Padding(0, 2).
 		Render(strings.Join(parts, "\n"))
+
+	if !v.vpReady {
+		return content
+	}
+	v.vp.SetContent(content)
+	main := v.vp.View()
 
 	// Editing overlay
 	if v.editing {

@@ -23,8 +23,8 @@ Runs on Linux today; macOS and Windows support is a planned next step.
 - Unread message badges per tab
 - Reconnect spinner in status bar on BLE disconnect
 - Auto-dismiss error bar (5 seconds)
-- Message persistence: full history in `~/.local/share/meshcore/messages.db` (bbolt)
-- Config profiles (`~/.config/meshcore/config.toml`)
+- Message persistence: full history in `~/.local/share/meshcore-go-tui/messages.db` (bbolt)
+- Config profiles (`~/.config/meshcore-go-tui/config.toml`)
 - Cross-compile targets for Linux, macOS, Windows
 
 ## Requirements
@@ -81,7 +81,7 @@ Config file location:
 
 | Platform | Path |
 |----------|------|
-| Linux | `~/.config/meshcore/config.toml` |
+| Linux | `~/.config/meshcore-go-tui/config.toml` |
 | macOS | `~/Library/Application Support/meshcore/config.toml` |
 | Windows | `%AppData%\meshcore\config.toml` |
 
@@ -135,10 +135,10 @@ device    = "192.168.1.100:3000"
 ```bash
 # Build machine (no Bluetooth) — always use serial
 echo 'default_transport = "serial"
-default_device    = "/dev/ttyUSB0"' > ~/.config/meshcore/config.toml
+default_device    = "/dev/ttyUSB0"' > ~/.config/meshcore-go-tui/config.toml
 
 # Laptop — BLE by default, serial fallback as a named profile
-cat > ~/.config/meshcore/config.toml <<EOF
+cat > ~/.config/meshcore-go-tui/config.toml <<EOF
 default_transport = "ble"
 default_device    = "AA:BB:CC:DD:EE:FF"
 
@@ -162,13 +162,13 @@ sudo apt install libnotify-bin
 
 ## Message storage
 
-All messages are persisted automatically to `~/.local/share/meshcore/messages.db`
+All messages are persisted automatically to `~/.local/share/meshcore-go-tui/messages.db`
 (bbolt embedded database, no external process required). History is loaded per
 contact and channel on every connection.
 
 ## Configurable key bindings
 
-Any key binding can be overridden in `~/.config/meshcore/config.toml` under a
+Any key binding can be overridden in `~/.config/meshcore-go-tui/config.toml` under a
 `[keys]` section. Key strings use BubbleTea notation (`"alt+n"`, `"ctrl+a"`,
 `"enter"`, `"pgup"`, etc.).
 

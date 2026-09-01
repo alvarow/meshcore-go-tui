@@ -54,11 +54,11 @@ Five tabs in `tui/views/`: `ChatView`, `ChannelView`, `NodesView`, `DeviceView`,
 
 ### Storage
 
-`storage/storage.go` uses bbolt (`~/.local/share/meshcore/messages.db`). Buckets: `contacts/<pubkey-hex>` and `channels/<idx>` for messages, `lastread` for per-contact read positions. Keys are 8-byte big-endian `UnixNano` — gives free chronological cursor order. All store calls from views are fire-and-forget (`_ = store.Save...`).
+`storage/storage.go` uses bbolt (`~/.local/share/meshcore-go-tui/messages.db`). Buckets: `contacts/<pubkey-hex>` and `channels/<idx>` for messages, `lastread` for per-contact read positions. Keys are 8-byte big-endian `UnixNano` — gives free chronological cursor order. All store calls from views are fire-and-forget (`_ = store.Save...`).
 
 ### Config
 
-`config/config.go` loads `~/.config/meshcore/config.toml`. Three fields: `default_transport`, `default_device`, `scan_name_filter`. Named profiles under `[profile.<name>]`. `SettingsView` writes directly to the live `*config.Config` pointer and calls `config.Save()`.
+`config/config.go` loads `~/.config/meshcore-go-tui/config.toml`. Three fields: `default_transport`, `default_device`, `scan_name_filter`. Named profiles under `[profile.<name>]`. `SettingsView` writes directly to the live `*config.Config` pointer and calls `config.Save()`.
 
 ### BLE transport
 

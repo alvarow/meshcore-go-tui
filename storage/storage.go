@@ -50,7 +50,7 @@ func DBPath() string {
 			dir = filepath.Join(base, ".local", "share")
 		}
 	}
-	return filepath.Join(dir, "meshcore", "messages.db")
+	return filepath.Join(dir, "meshcore-go-tui", "messages.db")
 }
 
 func Open() (*Store, error) {

@@ -40,7 +40,7 @@ func ConfigPath() string {
 	if err != nil {
 		dir = os.Getenv("HOME")
 	}
-	return filepath.Join(dir, "meshcore", "config.toml")
+	return filepath.Join(dir, "meshcore-go-tui", "config.toml")
 }
 
 func Load() (*Config, error) {

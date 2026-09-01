@@ -34,7 +34,7 @@ meshcore-go-tui/
 ├── cmd/root.go           CLI flags, config resolution, transport wiring,
 │                         session startup, push handler registration
 │
-├── config/config.go      TOML config at ~/.config/meshcore/config.toml
+├── config/config.go      TOML config at ~/.config/meshcore-go-tui/config.toml
 │                         Load / Save / DefaultConfig / ConfigPath
 │
 ├── storage/
@@ -203,7 +203,7 @@ and prints usage hints, then exits 0.
 
 ## Configuration
 
-`config.Config` is a TOML struct at `~/.config/meshcore/config.toml`.
+`config.Config` is a TOML struct at `~/.config/meshcore-go-tui/config.toml`.
 
 ```
 Config.DefaultTransport  string  "ble" | "serial" | "tcp"
@@ -412,7 +412,7 @@ Devices are deduplicated by address; RSSI updates in place.
 
 Package: `storage`
 File: `storage/storage.go`
-DB: `~/.local/share/meshcore/messages.db`
+DB: `~/.local/share/meshcore-go-tui/messages.db`
 
 ### Why bbolt
 

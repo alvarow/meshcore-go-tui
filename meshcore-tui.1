@@ -216,7 +216,7 @@ Trace the mesh path to the selected node (\fBSendPathDiscoveryReq\fR).
 Hop counts appear in the detail bar when the reply arrives.
 .SH "KEY BINDING CONFIGURATION"
 Any key binding can be overridden in the \fB[keys]\fR section of
-\fI~/.config/meshcore/config.toml\fR.
+\fI~/.config/meshcore-go-tui/config.toml\fR.
 Key strings use BubbleTea notation: \fBalt+n\fR, \fBctrl+a\fR, \fBenter\fR, \fBpgup\fR, etc.
 Omit a key to keep its default.
 .PP
@@ -244,11 +244,11 @@ The \fBSettings\fR tab (5) displays all current bindings and their defaults in a
 read-only panel.
 .SH FILES
 .TP
-.I ~/.config/meshcore/config.toml
+.I ~/.config/meshcore-go-tui/config.toml
 Configuration file.
 Created automatically on first save from the Settings tab.
 .TP
-.I ~/.local/share/meshcore/messages.db
+.I ~/.local/share/meshcore-go-tui/messages.db
 bbolt database storing message history and per-contact read positions.
 .SH CONFIGURATION
 The config file uses TOML syntax.

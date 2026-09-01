@@ -504,7 +504,7 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			v.searchInput.Focus()
 			return v, nil
 		case key.Matches(m, v.km.Send):
-			text := strings.TrimSpace(v.input.Value())
+			text := expandShortcodes(strings.TrimSpace(v.input.Value()))
 			if text == "" || v.client == nil || len(v.contacts) == 0 {
 				return v, nil
 			}

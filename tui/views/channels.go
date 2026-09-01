@@ -396,7 +396,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				return v, nil
 
 			default:
-				text := strings.TrimSpace(v.input.Value())
+				text := expandShortcodes(strings.TrimSpace(v.input.Value()))
 				v.leaveConfirmPending = false
 				if text == "" || v.client == nil || len(v.channels) == 0 {
 					return v, nil

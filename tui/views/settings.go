@@ -432,6 +432,41 @@ func (v *SettingsView) View() string {
 		statusLine = st.Render(v.status)
 	}
 
+	// Key bindings panel (read-only; edit in config.toml [keys])
+	keyDivider := dimStyle.Render("── Key Bindings " + strings.Repeat("─", max(0, v.width-18)))
+	type binding struct{ name, key, def string }
+	bindings := []binding{
+		{"next_tab", v.cfg.Keys.NextTab, "alt+n"},
+		{"prev_tab", v.cfg.Keys.PrevTab, "alt+p"},
+		{"quit", v.cfg.Keys.Quit, "q"},
+		{"send", v.cfg.Keys.Send, "enter"},
+		{"scroll_up", v.cfg.Keys.ScrollUp, "pgup"},
+		{"scroll_down", v.cfg.Keys.ScrollDown, "pgdn"},
+		{"advert", v.cfg.Keys.Advert, "ctrl+a"},
+		{"search", v.cfg.Keys.Search, "/"},
+		{"select_mode", v.cfg.Keys.SelectMode, "s"},
+		{"delete_msg", v.cfg.Keys.DeleteMsg, "d"},
+		{"clear_all", v.cfg.Keys.ClearAll, "X"},
+		{"off_record", v.cfg.Keys.OffRecord, "ctrl+o"},
+		{"join_channel", v.cfg.Keys.JoinChan, "n"},
+		{"leave_channel", v.cfg.Keys.LeaveChan, "d"},
+	}
+	var keyLines []string
+	colW := 16
+	for _, b := range bindings {
+		active := b.key
+		if active == "" {
+			active = b.def
+		}
+		row := fmt.Sprintf("  %-*s  %s", colW, b.name, lipgloss.NewStyle().Foreground(purple).Render(active))
+		if b.key != "" && b.key != b.def {
+			row += dimStyle.Render("  (default: " + b.def + ")")
+		}
+		keyLines = append(keyLines, row)
+	}
+	keyLines = append(keyLines, dimStyle.Render("  Edit in config.toml under [keys]"))
+	keyBlock := inactiveBorder.Width(v.width - 4).Render(strings.Join(keyLines, "\n"))
+
 	// Assemble main view
 	parts := []string{
 		"",
@@ -441,6 +476,9 @@ func (v *SettingsView) View() string {
 		"",
 		divider,
 		profBlock,
+		"",
+		keyDivider,
+		keyBlock,
 		"",
 		buttons,
 	}

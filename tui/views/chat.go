@@ -7,10 +7,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/alvarow/meshcore-go-tui/config"
 	"github.com/alvarow/meshcore-go-tui/storage"
 	meshcore "github.com/meshcore-go/meshcore-go"
 	"github.com/meshcore-go/meshcore-go/companion"
@@ -43,27 +45,28 @@ type contactItem struct {
 }
 
 type ChatView struct {
-	client      *client.Client
-	store       *storage.Store
-	contacts    []contactItem
-	selected    int
-	vp          viewport.Model
-	vpReady     bool
-	loadingMore bool
-	input       textinput.Model
-	searchMode  bool
-	searchInput textinput.Model
-	selectMode  bool
-	selectedMsg int
-	offRecord   bool
+	client       *client.Client
+	store        *storage.Store
+	km           config.KeyMap
+	contacts     []contactItem
+	selected     int
+	vp           viewport.Model
+	vpReady      bool
+	loadingMore  bool
+	input        textinput.Model
+	searchMode   bool
+	searchInput  textinput.Model
+	selectMode   bool
+	selectedMsg  int
+	offRecord    bool
 	clearPending bool
-	width       int
-	height      int
+	width        int
+	height       int
 }
 
 const listWidth = 22
 
-func NewChatView(c *client.Client, store *storage.Store) *ChatView {
+func NewChatView(c *client.Client, store *storage.Store, km config.KeyMap) *ChatView {
 	ti := textinput.New()
 	ti.Placeholder = "Type a message..."
 	ti.CharLimit = 200
@@ -74,7 +77,7 @@ func NewChatView(c *client.Client, store *storage.Store) *ChatView {
 	si.CharLimit = 40
 	si.Width = listWidth - 4
 
-	return &ChatView{client: c, store: store, input: ti, searchInput: si}
+	return &ChatView{client: c, store: store, km: km, input: ti, searchInput: si}
 }
 
 func (v *ChatView) Title() string { return "Chat" }
@@ -418,8 +421,8 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 		}
 
 		// Normal (non-search) key handling.
-		switch m.String() {
-		case "ctrl+o":
+		switch {
+		case key.Matches(m, v.km.OffRecord):
 			v.offRecord = !v.offRecord
 			if v.offRecord {
 				v.input.Placeholder = "⊘ off the record"
@@ -428,7 +431,7 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			}
 			return v, nil
 
-		case "s":
+		case key.Matches(m, v.km.SelectMode):
 			if v.selectMode {
 				v.selectMode = false
 			} else if v.selected < len(v.contacts) && len(v.contacts[v.selected].messages) > 0 {
@@ -439,7 +442,7 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 			v.rebuildViewport()
 			return v, nil
 
-		case "d":
+		case key.Matches(m, v.km.DeleteMsg):
 			if v.selectMode && v.selected < len(v.contacts) {
 				msgs := v.contacts[v.selected].messages
 				if v.selectedMsg < len(msgs) {
@@ -449,34 +452,34 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 						v.selectedMsg--
 					}
 					if v.store != nil {
-						key := hex.EncodeToString(v.contacts[v.selected].contact.PublicKey[:])
-						_ = v.store.DeleteDirectMessage(key, ts)
+						k := hex.EncodeToString(v.contacts[v.selected].contact.PublicKey[:])
+						_ = v.store.DeleteDirectMessage(k, ts)
 					}
 					v.rebuildViewport()
 				}
 				return v, nil
 			}
 
-		case "X":
+		case key.Matches(m, v.km.ClearAll):
 			if v.selected < len(v.contacts) {
 				if v.clearPending {
 					v.clearPending = false
 					v.contacts[v.selected].messages = nil
 					if v.store != nil {
-						key := hex.EncodeToString(v.contacts[v.selected].contact.PublicKey[:])
-						_ = v.store.ClearDirectMessages(key)
+						k := hex.EncodeToString(v.contacts[v.selected].contact.PublicKey[:])
+						_ = v.store.ClearDirectMessages(k)
 					}
 					v.rebuildViewport()
 				} else {
 					v.clearPending = true
 					v.contacts[v.selected].messages = append(v.contacts[v.selected].messages,
-						chatMessage{text: "press X again to clear all messages", isSystem: true, timestamp: time.Now()})
+						chatMessage{text: "press " + v.km.ClearAll.Help().Key + " again to clear all messages", isSystem: true, timestamp: time.Now()})
 					v.rebuildViewport()
 				}
 				return v, nil
 			}
 
-		case "esc":
+		case m.String() == "esc":
 			if v.selectMode {
 				v.selectMode = false
 				v.clearPending = false
@@ -484,17 +487,17 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 				return v, nil
 			}
 
-		case "ctrl+a":
+		case key.Matches(m, v.km.Advert):
 			if v.client != nil {
 				return v, sendAdvert(v.client)
 			}
 			return v, nil
-		case "/":
+		case key.Matches(m, v.km.Search):
 			v.searchMode = true
 			v.input.Blur()
 			v.searchInput.Focus()
 			return v, nil
-		case "enter":
+		case key.Matches(m, v.km.Send):
 			text := strings.TrimSpace(v.input.Value())
 			if text == "" || v.client == nil || len(v.contacts) == 0 {
 				return v, nil
@@ -505,15 +508,15 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 				from: "me", text: text, status: StatusSending, timestamp: now,
 			})
 			if v.store != nil && !v.offRecord {
-				key := hex.EncodeToString(contact.PublicKey[:])
-				_ = v.store.SaveDirectMessage(key, storage.StoredMessage{
+				k := hex.EncodeToString(contact.PublicKey[:])
+				_ = v.store.SaveDirectMessage(k, storage.StoredMessage{
 					Timestamp: now, From: "me", Text: text, Direction: storage.Outbound,
 				})
 			}
 			v.input.Reset()
 			v.rebuildViewport()
 			return v, sendDirectMsg(v.client, contact, text)
-		case "up":
+		case m.String() == "up":
 			if v.selectMode {
 				if v.selectedMsg > 0 {
 					v.selectedMsg--
@@ -525,7 +528,7 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 				v.rebuildViewport()
 			}
 			return v, nil
-		case "down":
+		case m.String() == "down":
 			if v.selectMode {
 				if v.selected < len(v.contacts) && v.selectedMsg < len(v.contacts[v.selected].messages)-1 {
 					v.selectedMsg++
@@ -537,17 +540,17 @@ func (v *ChatView) Update(msg tea.Msg) (View, tea.Cmd) {
 				v.rebuildViewport()
 			}
 			return v, nil
-		case "pgup", "ctrl+u":
+		case key.Matches(m, v.km.ScrollUp) || m.String() == "ctrl+u":
 			v.vp, cmd = v.vp.Update(msg)
 			if v.vp.AtTop() && !v.loadingMore && v.store != nil &&
 				v.selected < len(v.contacts) && len(v.contacts[v.selected].messages) > 0 {
 				v.loadingMore = true
 				oldest := v.contacts[v.selected].messages[0].timestamp
-				key := hex.EncodeToString(v.contacts[v.selected].contact.PublicKey[:])
-				return v, loadOlderDirectMsgs(v.store, key, oldest)
+				k := hex.EncodeToString(v.contacts[v.selected].contact.PublicKey[:])
+				return v, loadOlderDirectMsgs(v.store, k, oldest)
 			}
 			return v, cmd
-		case "pgdn", "ctrl+d":
+		case key.Matches(m, v.km.ScrollDown) || m.String() == "ctrl+d":
 			v.vp, cmd = v.vp.Update(msg)
 			return v, cmd
 		}

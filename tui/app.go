@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -23,31 +24,34 @@ type ErrorMsg struct{ Err error }
 type clearErrMsg struct{}
 
 type App struct {
-	tabs       []views.View
-	activeTab  int
-	unread     [5]int
-	connected  bool
+	tabs         []views.View
+	activeTab    int
+	unread       [5]int
+	connected    bool
 	reconnecting bool
-	deviceName string
-	width      int
-	height     int
-	client     *client.Client
-	spinner    spinner.Model
-	lastErr    string
-	errExpiry  time.Time
+	deviceName   string
+	width        int
+	height       int
+	client       *client.Client
+	spinner      spinner.Model
+	lastErr      string
+	errExpiry    time.Time
+	km           config.KeyMap
 }
 
 func New(deviceName string, c *client.Client, store *storage.Store, cfg *config.Config) *App {
 	s := spinner.New()
 	s.Spinner = spinner.Points
 	s.Style = lipgloss.NewStyle().Foreground(colorPrimary)
+	km := config.BuildKeyMap(cfg.Keys)
 	return &App{
 		deviceName: deviceName,
 		client:     c,
 		spinner:    s,
+		km:         km,
 		tabs: []views.View{
-			views.NewChatView(c, store),
-			views.NewChannelView(c, store),
+			views.NewChatView(c, store, km),
+			views.NewChannelView(c, store, km),
 			views.NewNodesView(),
 			views.NewDeviceView(),
 			views.NewSettingsView(cfg),
@@ -87,26 +91,22 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		inputBusy := a.tabs[a.activeTab].InputFocused()
-		switch m.String() {
-		case "ctrl+c":
+		switch {
+		case m.String() == "ctrl+c":
 			return a, tea.Quit
-		case "q":
-			if !inputBusy {
-				return a, tea.Quit
-			}
-		case "ctrl+tab":
+		case key.Matches(m, a.km.Quit) && !inputBusy:
+			return a, tea.Quit
+		case key.Matches(m, a.km.NextTab):
 			a.switchTab((a.activeTab + 1) % len(a.tabs))
 			return a, nil
-		case "ctrl+shift+tab":
+		case key.Matches(m, a.km.PrevTab):
 			a.switchTab((a.activeTab - 1 + len(a.tabs)) % len(a.tabs))
 			return a, nil
-		case "1", "2", "3", "4", "5":
-			if !inputBusy {
-				idx := int(m.String()[0] - '1')
-				if idx < len(a.tabs) {
-					a.switchTab(idx)
-					return a, nil
-				}
+		case !inputBusy && len(m.String()) == 1 && m.String()[0] >= '1' && m.String()[0] <= '5':
+			idx := int(m.String()[0] - '1')
+			if idx < len(a.tabs) {
+				a.switchTab(idx)
+				return a, nil
 			}
 		}
 

@@ -61,6 +61,9 @@ make build-all  # cross-compile all targets
 
 # Named profile from config
 ./meshcore-tui --profile home
+
+# Print version and exit
+./meshcore-tui --version
 ```
 
 ## Configuration
@@ -163,16 +166,43 @@ All messages are persisted automatically to `~/.local/share/meshcore/messages.db
 (bbolt embedded database, no external process required). History is loaded per
 contact and channel on every connection.
 
+## Configurable key bindings
+
+Any key binding can be overridden in `~/.config/meshcore/config.toml` under a
+`[keys]` section. Key strings use BubbleTea notation (`"alt+n"`, `"ctrl+a"`,
+`"enter"`, `"pgup"`, etc.).
+
+```toml
+[keys]
+next_tab     = "alt+n"   # default
+prev_tab     = "alt+p"   # default
+advert       = "ctrl+a"
+send         = "enter"
+scroll_up    = "pgup"
+scroll_down  = "pgdn"
+search       = "/"
+select_mode  = "s"
+delete_msg   = "d"
+clear_all    = "X"
+off_record   = "ctrl+o"
+join_channel = "n"
+leave_channel = "d"
+quit         = "q"
+```
+
+Omit a key to keep its default. The **Settings tab** (`5`) shows all current
+bindings and their defaults in a read-only panel.
+
 ## Keyboard shortcuts
 
 ### Global
 
 | Key | Action |
 |-----|--------|
-| `1` – `5` | Switch directly to tab 1–5 |
-| `Ctrl+Tab` | Next tab |
-| `Ctrl+Shift+Tab` | Previous tab |
-| `q` / `Ctrl+C` | Quit |
+| `1` – `5` | Switch directly to tab 1–5 (suppressed while a text input is focused — press `Esc` first if needed) |
+| `Alt+N` | Next tab |
+| `Alt+P` | Previous tab |
+| `q` / `Ctrl+C` | Quit (`q` suppressed while typing) |
 
 ### BLE scan picker (startup)
 

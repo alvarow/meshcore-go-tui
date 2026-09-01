@@ -7,6 +7,7 @@ meshcore\-tui \- terminal UI companion client for MeshCore mesh radio nodes
 [\fB\-\-device\fR \fIaddress\fR]
 [\fB\-\-profile\fR \fIname\fR]
 [\fB\-\-debug\fR]
+[\fB\-\-version\fR]
 .SH DESCRIPTION
 \fBmeshcore\-tui\fR is a terminal UI companion client that connects a laptop
 to a MeshCore mesh radio node over Bluetooth Low Energy (BLE), serial, or TCP.
@@ -44,18 +45,24 @@ Load connection settings from a named profile in the config file.
 Log BLE operations and protocol messages to stderr.
 Useful for diagnosing connection problems.
 Redirect with \fB2>/tmp/mc.log\fR.
+.TP
+.B \-\-version
+Print the version string and exit.
 .SH "KEYBOARD SHORTCUTS"
 .SS Global
 .TP
 .B 1\-5
 Switch directly to a tab: Chat (1), Channels (2), Nodes (3), Device (4), Settings (5).
+These keys are suppressed while a text input is focused; press \fBEsc\fR to blur
+the input first if needed.
 .TP
-.B Ctrl+Tab \fR/\fB Ctrl+Shift+Tab
-Next / previous tab.
-Tab and Shift+Tab without Ctrl are passed to the active tab for field navigation.
+.B Alt+N \fR/\fB Alt+P
+Next / previous tab (configurable; default \fIalt+n\fR / \fIalt+p\fR).
+Tab and Shift+Tab are passed through to the active tab for field navigation.
 .TP
 .B q \fR/\fB Ctrl+C
 Quit.
+\fBq\fR is suppressed while a text input is focused; \fBCtrl+C\fR always quits.
 .SS "BLE scan picker (startup)"
 .TP
 .B \(ua \fR/\fB \(da \fR, \fB j \fR/\fB k
@@ -147,6 +154,34 @@ Clear all messages for the selected channel (local only, two-press confirm).
 .TP
 .B Ctrl+O
 Toggle off-the-record mode (same behaviour as in the Chat tab).
+.SH "KEY BINDING CONFIGURATION"
+Any key binding can be overridden in the \fB[keys]\fR section of
+\fI~/.config/meshcore/config.toml\fR.
+Key strings use BubbleTea notation: \fBalt+n\fR, \fBctrl+a\fR, \fBenter\fR, \fBpgup\fR, etc.
+Omit a key to keep its default.
+.PP
+Available binding names and defaults:
+.RS
+.nf
+next_tab      = "alt+n"
+prev_tab      = "alt+p"
+quit          = "q"
+send          = "enter"
+scroll_up     = "pgup"
+scroll_down   = "pgdn"
+advert        = "ctrl+a"
+search        = "/"
+select_mode   = "s"
+delete_msg    = "d"
+clear_all     = "X"
+off_record    = "ctrl+o"
+join_channel  = "n"
+leave_channel = "d"
+.fi
+.RE
+.PP
+The \fBSettings\fR tab (5) displays all current bindings and their defaults in a
+read-only panel.
 .SH FILES
 .TP
 .I ~/.config/meshcore/config.toml

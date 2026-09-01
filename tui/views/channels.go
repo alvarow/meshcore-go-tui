@@ -8,10 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/alvarow/meshcore-go-tui/config"
 	"github.com/alvarow/meshcore-go-tui/storage"
 	"github.com/meshcore-go/meshcore-go/companion"
 	"github.com/meshcore-go/meshcore-go/companion/client"
@@ -42,6 +44,7 @@ type channelItem struct {
 type ChannelView struct {
 	client              *client.Client
 	store               *storage.Store
+	km                  config.KeyMap
 	channels            []channelItem
 	selected            int
 	vp                  viewport.Model
@@ -59,12 +62,12 @@ type ChannelView struct {
 	height              int
 }
 
-func NewChannelView(c *client.Client, store *storage.Store) *ChannelView {
+func NewChannelView(c *client.Client, store *storage.Store, km config.KeyMap) *ChannelView {
 	ti := textinput.New()
 	ti.Placeholder = "Type a message..."
 	ti.CharLimit = 200
 	ti.Focus()
-	return &ChannelView{client: c, store: store, input: ti}
+	return &ChannelView{client: c, store: store, km: km, input: ti}
 }
 
 func (v *ChannelView) Title() string { return "Channels" }
@@ -258,8 +261,8 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 		return v, nil
 
 	case tea.KeyMsg:
-		switch m.String() {
-		case "esc":
+		switch {
+		case m.String() == "esc":
 			if v.selectMode {
 				v.selectMode = false
 				v.clearPending = false
@@ -275,7 +278,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 			v.leaveConfirmPending = false
 			return v, nil
 
-		case "ctrl+o":
+		case key.Matches(m, v.km.OffRecord):
 			v.offRecord = !v.offRecord
 			if v.offRecord {
 				v.input.Placeholder = "⊘ off the record"
@@ -284,7 +287,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 			}
 			return v, nil
 
-		case "s":
+		case key.Matches(m, v.km.SelectMode):
 			if v.selectMode {
 				v.selectMode = false
 			} else if v.selected < len(v.channels) && len(v.channels[v.selected].messages) > 0 {
@@ -295,7 +298,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 			v.rebuildViewport()
 			return v, nil
 
-		case "X":
+		case key.Matches(m, v.km.ClearAll):
 			if v.selected < len(v.channels) {
 				if v.clearPending {
 					v.clearPending = false
@@ -307,19 +310,19 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 					v.rebuildViewport()
 				} else {
 					v.clearPending = true
-					v.appendSystem("press X again to clear all messages")
+					v.appendSystem("press " + v.km.ClearAll.Help().Key + " again to clear all messages")
 					v.rebuildViewport()
 				}
 				return v, nil
 			}
 
-		case "ctrl+a":
+		case key.Matches(m, v.km.Advert):
 			if v.client != nil {
 				return v, sendAdvert(v.client)
 			}
 			return v, nil
 
-		case "n":
+		case key.Matches(m, v.km.JoinChan):
 			if v.mode == modeChanChat && !v.input.Focused() {
 				v.mode = modeChanJoinName
 				v.input.SetValue("")
@@ -328,8 +331,8 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				return v, nil
 			}
 
-		case "d":
-			if v.selectMode && v.selected < len(v.channels) {
+		case key.Matches(m, v.km.DeleteMsg) && v.selectMode:
+			if v.selected < len(v.channels) {
 				msgs := v.channels[v.selected].messages
 				if v.selectedMsg < len(msgs) {
 					ts := msgs[v.selectedMsg].timestamp
@@ -345,6 +348,8 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				}
 				return v, nil
 			}
+
+		case key.Matches(m, v.km.LeaveChan) && !v.selectMode:
 			if v.mode == modeChanChat && v.client != nil && len(v.channels) > 0 {
 				if v.leaveConfirmPending {
 					v.leaveConfirmPending = false
@@ -352,13 +357,13 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 					return v, leaveChannel(v.client, ch.info.ChannelIdx, ch.info.Name)
 				}
 				v.leaveConfirmPending = true
-				v.appendSystem("press d again to leave #" + v.channels[v.selected].info.Name)
+				v.appendSystem("press " + v.km.LeaveChan.Help().Key + " again to leave #" + v.channels[v.selected].info.Name)
 				v.rebuildViewport()
 				return v, nil
 			}
 			v.leaveConfirmPending = false
 
-		case "enter":
+		case key.Matches(m, v.km.Send):
 			switch v.mode {
 			case modeChanJoinName:
 				name := strings.TrimSpace(v.input.Value())
@@ -404,7 +409,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				return v, sendChannelMsg(v.client, idx, text)
 			}
 
-		case "up":
+		case m.String() == "up":
 			if v.selectMode {
 				if v.selectedMsg > 0 {
 					v.selectedMsg--
@@ -420,7 +425,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				}
 				return v, nil
 			}
-		case "down":
+		case m.String() == "down":
 			if v.selectMode {
 				if v.selected < len(v.channels) && v.selectedMsg < len(v.channels[v.selected].messages)-1 {
 					v.selectedMsg++
@@ -436,7 +441,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				}
 				return v, nil
 			}
-		case "pgup", "ctrl+u":
+		case key.Matches(m, v.km.ScrollUp) || m.String() == "ctrl+u":
 			v.vp, cmd = v.vp.Update(msg)
 			if v.vp.AtTop() && !v.loadingMore && v.store != nil &&
 				v.selected < len(v.channels) && len(v.channels[v.selected].messages) > 0 {
@@ -446,7 +451,7 @@ func (v *ChannelView) Update(msg tea.Msg) (View, tea.Cmd) {
 				return v, loadOlderChannelMsgs(v.store, idx, oldest)
 			}
 			return v, cmd
-		case "pgdn", "ctrl+d":
+		case key.Matches(m, v.km.ScrollDown) || m.String() == "ctrl+d":
 			v.vp, cmd = v.vp.Update(msg)
 			return v, cmd
 		}

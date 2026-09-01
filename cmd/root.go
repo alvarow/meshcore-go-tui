@@ -28,6 +28,7 @@ var (
 	flagTransport string
 	flagProfile   string
 	flagDebug     bool
+	flagVersion   bool
 )
 
 func init() {
@@ -35,10 +36,16 @@ func init() {
 	flag.StringVar(&flagTransport, "transport", "", "Transport type: ble, serial, tcp (overrides config)")
 	flag.StringVar(&flagProfile, "profile", "", "Config profile name to use")
 	flag.BoolVar(&flagDebug, "debug", false, "Log BLE operations and protocol messages to stderr")
+	flag.BoolVar(&flagVersion, "version", false, "Print version and exit")
 }
 
 func Execute() {
 	flag.Parse()
+
+	if flagVersion {
+		fmt.Println(Version)
+		os.Exit(0)
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
